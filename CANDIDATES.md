@@ -397,7 +397,7 @@ kit sample or val6); then a few to ~25 s more per such commit instead of a possi
 miss. A precise replacement (runtime record of the keys each test looks up) is the next
 step.
 
-## M12 — soundness fix: module-level names read through module aliases (recommended next; includes M7-M11)
+## M12 — soundness fix: module-level names read through module aliases (superseded by M13)
 
 Commit: **daff9bc** (branch br-opt). Builds on M11. Docker re-run on exactly this tree
 (`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run.
@@ -447,7 +447,7 @@ val1/val2/val4, re-checked where noted); probes = the adversarial sets of this r
 | 4 | no-op statements (`pass`, bare constants, `NAME = const` never mentioned elsewhere in a function without introspection) -> nothing | proof (static) | val5 dead-code kinds |
 | 5 | import-time edit -> tests that executed the statement, or imported the module when the statement is not covered | proof: class/module bodies run at import; import-time lines are in each test's coverage | val3, val2, val7, val8, val10, modrefs |
 | 6 | import check: an import-time value not provably safe -> the verifier imports the module; failure -> every importer | proof (runs the import) | val5 raising class body, val10 (MAP/ARRAY/CAST renames: 1020 failing each, all kept) |
-| 7 | class body: AND tests that used the class (instantiated it or a subclass, entered a method; a dialect and its tokenizer/parser/generator count as one) | **heuristic**: a class attribute can be read through the class object without an instance; class-body copies from other classes are subclasses in every case found (grep) | val3, val7, val8, enum probes; no miss found |
+| 7 | class body: AND tests that used the class (instantiated it or a subclass, entered a method; a dialect and its tokenizer/parser/generator count as one) **or ran a line reading an attribute through the class (or a subclass) spelled by name** (M13, `tools/add_xreads.py`) | argument: an attribute of C is read through an instance (instantiated), in C's methods (entered), through C's name (recorded line), or through a class object held as a value; the last is covered only where the holder is the dialect family (`self.dialect.parser_class.X`) or the metaclass at import (base coverage); a class object fetched from a registry and read without an instance would still be missed (none found by grep) | val3, val7, val8, enum and cross-class probes (val14: M12 missed 3 tests of one commit, M13 none); without this rule: sample +36.9 s, val6 +167 s, val9 +134 s |
 | 8 | class body: AND lines that mention the name (text over sqlglot/, tests/, sqlglotc/, string constants included) or read attributes by computed name (getattr/hasattr/setattr/delattr with non-literal names, vars, getmembers, `__dict__`; regex of matchable names) | proof modulo computed reads outside that list (`operator.attrgetter`, `getattr_static`, `__getattribute__`: none in sqlglot or tests, grep) | val3, val2, val7, val8 |
 | 9 | typed narrowing: a `self.NAME`/`cls.NAME`/`self.dialect.NAME` line counts only for receivers whose MRO contains the edited class | proof: per-test receiver records; lines without a record keep every test that ran them | val2, val3, val6 |
 | 10 | tokenizer settings through `TokenizerCore` (M9/M10) | proof: static plumbing + per-test and per-case owner records of the observing core lines; off if the core, `_init_core` or any `TokenizerCore` mention changes | val7 (44), val8 (24), sample 4d63 |
@@ -465,4 +465,41 @@ val1/val2/val4, re-checked where noted); probes = the adversarial sets of this r
 | 22 | verification: candidates that pass when run here with the patch are left out | proof modulo environment (in-process unittest semantics, process pools replaced by a synchronous executor, generous limits) | every set |
 | 23 | per-case restriction: only the cases that reach the change (code) or changed (fixture) | proof modulo state carried between cases; union of case coverage = whole-test coverage for all 28 tests | val1/val2/val6 optimizer and TPC edits |
 | 24 | TPC-DS stage check: optimizer outputs equal and nothing outside `optimize()` reached -> rest of each case unchanged | proof modulo determinism (fingerprints recorded under two hash seeds) | sample 2jrq, val2/val6 TPC-DS candidates |
-| 25 | infection probes: unrun candidates (incl. expensive ones) left out when the edited expressions never evaluate differently in the cheap tests run (>= 50 evaluations, >= 3 tests) | **heuristic** (induction from the tests that ran) | val4 (built for it), sample 66ks, val1 |
+| 25 | infection probes: unrun candidates (incl. expensive ones) left out when the edited expressions never evaluate differently in the cheap tests run (>= 50 evaluations, >= 3 tests) | **heuristic** (induction from the tests that ran) | 24 labelled "inert" decisions, all right: sample 2, val4 11 (built for it), is/== swap probe set 11; switching it off (`BR_PROBES=0`) costs sample +33.0 s, val4 +158.8, val2 +3.5, val1 +2.0, val6/val9 +0 |
+
+Determinism check behind rows 1, 5, 9, 10, 23: 161 tests (every 10th, under 3 s) traced
+under PYTHONHASHSEED=1 and =2: identical line coverage for all 161.
+
+## M13 — soundness fix: class attributes read through the class name (recommended next; includes M7-M12)
+
+Commit: **e58bf21** (branch br-opt). Builds on M12. Docker re-run on exactly this tree
+(`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run.
+
+Third miss class, found by the audit of row 7: the class-attribute rule kept only tests
+that used the class, but a read through the class spelled by name needs no instance.
+Presto's class body takes `TIME_MAPPING = MySQL.TIME_MAPPING` (the same dict), Athena's
+tokenizer merges Hive's and Trino's settings, PrestoGenerator reads
+`Hive.INVERSE_TIME_MAPPING`. Changing MySQL.TIME_MAPPING's "%i" entry fails
+test_presto::test_to_char, test_hive::test_time and test_spark::test_to_date; M12 left
+them out. `tools/add_xreads.py` records (from the live modules of the pinned checkout)
+every attribute access through a class spelled by name: 2,167 reads, receivers bound by
+function-local imports resolved by name. Tests that ran such a line for the edited class
+or a subclass now count as its users. Probe set val14 (6 cross-class edits, pytest
+labels): M12 misses 1 commit, M13 none.
+
+| set | M12 sim | M13 sim | misses |
+| --- | ---: | ---: | ---: |
+| kit sample (30) | 96.8 | 96.8 | 0 |
+| val1 (199) | 1203.3 | 1225.4 | 0 |
+| val2 (120) | 564.7 | 608.0 | 0 |
+| val4 (36) | 79.3 | 79.3 | 0 |
+| val3 (40 class-level) | 302.0 | 324.2 | 0 |
+| val5 (64 new kinds) | 218.9 | 238.6 | 0 |
+| val6 (60 official-style) | 193.2 | 193.2 | 0 |
+| val7 / val8 (tokenizer settings) | 47.5 / 202.5 | 51.0 / 266.0 | 0 |
+| val9 (60 official-style) | 242.5 | 250.3 | 0 |
+| val10-13 (SQL-key, module-alias, new-file, enum probes) | 0 missed | 0 missed | 0 |
+| val14 cross-class probes (6) | 1 commit missed | 0 missed | |
+
+Expected on practice: unchanged for sample-like commits (sample and val6 identical); more
+for class-level edits of dialect/tokenizer settings that other classes read by name.
