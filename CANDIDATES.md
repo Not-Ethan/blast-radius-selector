@@ -1,10 +1,10 @@
 
 # Candidate submissions (branch br-opt)
 
-> **Final entry if the cutoff were now: M15 (f72a919)** — all three soundness fixes
-> (M11-M13) plus a precise, still-sound replacement for M11's widening (key-level records of
-> string-keyed dicts). Recommended for the 1:59 / 2:59 slot instead of M11-alone if only one
-> slot is left: it tells us directly how much of the +24.5 s comes back.
+> **Final entry if the cutoff were now: M17 (2963170)** — all three soundness fixes
+> (M11-M13) plus precise, still-sound replacements for two of the three widenings
+> (key-level records for dict entries; recorded module attribute reads). Recommended for
+> the next slot.
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
@@ -542,7 +542,7 @@ keeps the attribute. Probe set val14: still 0 missed.
 | val10-13 probes | 0 missed | 0 missed | 0 |
 | val14 cross-class probes (6) | 0 missed | 0 missed | |
 
-## M15 — key-level records for string-keyed dict edits (recommended next; includes M7-M14)
+## M15 — key-level records for string-keyed dict edits (superseded by M17)
 
 Commit: **f72a919** (branch br-opt; first version c335a50, same results). Docker re-run
 on exactly this tree (`git archive`): valid, 0 misses, done at 126 s of the emulated run;
@@ -588,3 +588,41 @@ On every set M15 is at or below M14, and on val1/val2/val5 below even M10's unso
 rule. Not covered by M15: dicts keyed by enum members or classes (`TYPE_MAPPING`,
 `TRANSFORMS`; the latter has its own class rule), module-level name reads (M12) and
 non-dict class attributes copied across classes (M13) — next.
+
+## M17 — dicts keyed by enums/classes, recorded module attribute reads (recommended next; includes M7-M15)
+
+Commit: **2963170** (branch br-opt; M16 = 7dac690 is the intermediate with only the first
+change). Docker re-run on exactly this tree (`git archive`): valid, 0 misses, done at 126 s
+of the emulated run (4d63 narrowed by its key record in the container).
+
+* Key records also for dicts keyed by enum members and classes (`TYPE_MAPPING` with
+  `DType` keys, TokenType-keyed parser tables): keys named by qualified name.
+* Module-level value edits (replacing M12's "any `<x>.NAME` on a line the test ran"):
+  `tools/trace_modattrs.py` swaps each sqlglot module object's class for a recording
+  ModuleType subclass in a zygote that imported everything, and each test records the
+  attributes it read through module objects (1620/1620). Attribute reads inside
+  functions now count only for tests without a record; tests with one count when they
+  read a binding holding the value (the name and its from-import/star re-exports,
+  searched under alias names too). Bare-name uses, import-time lines, string constants
+  and computed-name readers keep the static rule. Applied only when the state
+  fingerprint shows that nothing but those bindings (and recorded dict entries)
+  changed.
+* Soundness argument: a function can read the module binding only by a bare name
+  (static rule kept), through a module object (recorded), or through state built at
+  import (fingerprinted: any other change keeps the M12 mask).
+
+| set | M8 | M13 (practice 162.5 sim) | M15 | **M17** | misses |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| kit sample (30) | 104.8 | 96.8 | 96.8 | **96.8** | 0 |
+| val2 (120) | 581.4 | 608.0 | 538.5 | **532.8** | 0 |
+| val6 (60 official-style) | 193.2 | 193.2 | 193.2 | **193.2** | 0 |
+| val9 (60 official-style) | 292.0 | 250.3 | 242.5 | **242.5** | 0 |
+| val1 (199) | 1105.5 | 1225.4 | 1077.5 | **1071.1** | 0 |
+| val3 (40 class-level) | 276.9 | 324.2 | 302.0 | **297.8** | 0 |
+| val5 (64 new kinds) | 203.5 | 238.6 | 180.7 | **176.4** | 0 |
+| val8 / val10 / val11 / val14 | 402.6 / misses / misses / misses | 266.0 / 662.7 / 169.4 / 130.1 | 236.3 / 361.5 / 140.7 / 94.9 | **236.3 / 362.6 / 138.7 / 94.9** | 0 |
+| val16 = 60 new class-level edits (pytest labels) | | 596.6 | | **546.7** | 0 |
+| val4, val7, val12, val13, val15 | | | | unchanged | 0 |
+
+Still widened (M13): non-dict class attributes read through another class's name or
+copied across classes; next candidate.
