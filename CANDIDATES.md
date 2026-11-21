@@ -145,3 +145,47 @@ re-run 4 -> TPC-DS cleared: 25.45 s -> 10.0 s).
 Versus M1 (practice 185.3): on val2, the closest proxy for the official generator,
 simulated 277.8 -> 226.7 (-51 s / 68 commits); sample unchanged; local CPU on val2
 62 -> 90 s (about +14 s at the observed ~0.5 scorer/local ratio).
+
+Real result of M4 (SUBMISSIONS.md): 165.0 s = 143.412 simulated + 21.4-21.7 CPU, 0 missed.
+Scorer/local CPU ratio: practice 21.6 s / 40 commits = 0.54 s per commit vs 0.91 s per
+commit locally on the kit sample (27.3 s / 30) -> about 0.6 (0.4 against val2).
+
+## M5 — import checks (soundness), re-export-aware reads, dialect-typed coverage, stage abort (recommended next)
+
+Commit: **7a966cc** (branch br-opt). Builds on M4. Docker re-run on exactly this tree
+(valid, 0 misses).
+
+What changed:
+* Soundness: an import-time edit (class body, module level, decorators, defaults)
+  whose new value is not provably safe to evaluate now always gets its module
+  imported by the verifier, also when the plan is blind or nothing is reachable (a
+  zero-test job); if the import fails or cannot be checked, every importer is
+  included. Before, such an edit (e.g. a class-body value that raises at import) was
+  narrowed by class usage and, on a blind plan, never checked. Checked with a
+  synthetic tsql class-body edit that raises: 171 tests fail (pytest), 171 selected.
+* A module-level value change that keeps the same names bound: `from M import NAME`
+  lines are no longer reads (their later uses are; re-exports followed transitively);
+  computed-name readers that only use classes are skipped for plain-data values
+  (val6 7bef, a TIMEZONES entry: 1617 -> 93 candidates).
+* Typed coverage also records the class of `self.dialect` on `self.dialect.NAME`
+  lines (dialect settings read by the shared parser/generator).
+* A TPC-DS stage check stops as soon as the test will be included anyway (sample
+  2jrq: 8.6 s -> ~5 s local CPU).
+
+| set | M4 sim | M5 sim | misses | local CPU M4 -> M5 |
+| --- | ---: | ---: | ---: | ---: |
+| kit sample (30) | 106.3 | 106.3 | 0 | 27.3 -> 23.8 |
+| val1 (141) | 690.4 | 690.4 | 0 | 122.4 -> 125.5 |
+| val2 (68) | 226.7 | 226.7 | 0 | 90.3 -> 88.5 |
+| val4 (36) | 87.0 | 87.0 | 0 | 92.0 -> 87.9 |
+| val3 (40 class-level edits, pytest labels) | 367.6 | **350.0** | 0 | 57.9 -> 42.8 |
+| val5 (64 new kinds) | 209.7 | 209.7 | 0 | 13.8 -> 13.8 |
+| val6 (41 official-style mutations, pytest labels) | 156.7 | **145.3** | 0 | 48.9 -> 36.5 |
+
+One reported miss during this round was a false label: val6 bmwq listed
+test_max_nodes as failing because the labeller's per-test limit (149 s) expired under
+load; run alone on the patched tree it passes (45 s). Label corrected, limits widened.
+
+Expected on practice: CPU slightly down; simulated down only where module-level data,
+dialect settings or class-level values are edited. Main value: the import-check
+soundness fix for unseen kinds of change in the final.
