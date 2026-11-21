@@ -52,6 +52,8 @@ class Site:
     # entry keys involved, as ("str", text) / ("attr", name) / ("name", id) /
     # ("other",). None when the change is not confined to dict entries.
     dict_keys: list | None = None
+    # ... and the keys both versions share keep their relative order (no entry moved)
+    dict_order_same: bool = False
     # An assignment whose targets (plain names) are unchanged: only the value differs.
     same_binding: bool = False
     # ... and old and new values are displays of constants (sets, lists, tuples, dicts,
@@ -637,6 +639,12 @@ class _Differ:
         if not header_only and isinstance(o, (ast.Assign, ast.AnnAssign)) and isinstance(o.value, ast.Dict) \
                 and isinstance(n, type(o)) and isinstance(n.value, ast.Dict):
             self.sites[-1].dict_keys = _changed_dict_keys(o.value, n.value, diffs)
+            # entries identified by their key, `**mapping` entries by what they unpack
+            old_keys = [dump(k) if k is not None else ("**", dump(v)) for k, v in zip(o.value.keys, o.value.values)]
+            new_keys = [dump(k) if k is not None else ("**", dump(v)) for k, v in zip(n.value.keys, n.value.values)]
+            common = set(old_keys) & set(new_keys)
+            self.sites[-1].dict_order_same = len(set(old_keys)) == len(old_keys) and len(set(new_keys)) == len(new_keys) \
+                and [k for k in old_keys if k in common] == [k for k in new_keys if k in common]
 
     def _func(self, o, n, ctx):
         header_fields = ("name", "args", "decorator_list", "returns", "type_params", "type_comment")

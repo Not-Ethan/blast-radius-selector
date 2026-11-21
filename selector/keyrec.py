@@ -331,20 +331,21 @@ def state_fingerprint(root_modules=("sqlglot",)) -> dict:
 
 
 # -- decision time -------------------------------------------------------------
-def changed_entries(pinned1: dict, pinned2: dict, patched: dict, changed_paths) -> dict | None:
+def changed_entries(pinned1: dict, pinned2: dict, patched: dict, changed_paths, loop_leftover) -> dict | None:
     """Compare state fingerprints. Returns {holder\tattr: set of changed keys} for
     string-keyed dicts whose entries changed, or None when something else changed (a
-    non-dict value, a value that could not be fingerprinted, an import error): then
-    no key-level narrowing. pinned1/pinned2 are two runs on the pinned tree under
-    different hash seeds; an entry that differs between them depends on set order: it
-    is compared order-insensitively ("o"). If even that differs (a loop variable left
-    in a class body, holding whichever set element came last) it is ignored when the
-    patch does not touch its module: its value then depends only on inputs that are
-    themselves compared here, and on iteration order, which is random at the pinned
-    commit too."""
+    non-dict value, a value that could not be fingerprinted, an import error): then no
+    key-level narrowing. Only called for commits whose import-time edits are entries of
+    string-keyed dict displays that keep the relative order of their other keys
+    (Site.dict_order_same), so no deterministic order changes anywhere: dicts are
+    compared as mappings, and a non-dict value whose fingerprint differs only in order
+    ("o" equal: built from a set, whose order depends on the process) is unchanged. A
+    variable left behind by a `for` loop in a class body holds whichever set element
+    came last; it is ignored when the patch does not touch its module
+    (loop_leftover(key) -> bool). pinned2 is kept for callers that compare runs."""
     if patched.get("import_errors") != pinned1.get("import_errors"):
         return None
-    s1, s2, p = pinned1["state"], pinned2["state"], patched["state"]
+    s1, p = pinned1["state"], patched["state"]
     out: dict = {}
     for key in set(s1) | set(p):
         a, b = s1.get(key), p.get(key)
@@ -360,14 +361,12 @@ def changed_entries(pinned1: dict, pinned2: dict, patched: dict, changed_paths) 
             if keys:
                 out[key] = keys
             continue
-        other = s2.get(key)
-        if other is not None and other != a and "d" not in a:
-            # order-dependent at the pinned commit
-            if a.get("o", a.get("v")) == b.get("o", b.get("v")):
-                continue
-            if other.get("o", other.get("v")) != a.get("o", a.get("v")):
-                base = key.split("\t", 1)[0].split(":", 1)[0].replace(".", "/")
-                if base + ".py" not in changed_paths and base + "/__init__.py" not in changed_paths:
-                    continue
+        if "d" in a or "d" in b:
+            return None  # a dict became something else, or the reverse
+        if a.get("o", a.get("v")) == b.get("o", b.get("v")):
+            continue  # same elements; only a set-dependent order differs
+        base = key.split("\t", 1)[0].split(":", 1)[0].replace(".", "/")
+        if loop_leftover(key) and base + ".py" not in changed_paths and base + "/__init__.py" not in changed_paths:
+            continue
         return None
     return out

@@ -50,6 +50,57 @@ def _finish(proc, timeout):
         return None
 
 
+def _loop_leftovers(root: str):
+    """key -> whether holder\tattr is the target of a `for` loop directly in that class
+    body (or at module level) in the pinned source."""
+    import ast
+
+    cache: dict = {}
+
+    def check(key: str) -> bool:
+        holder, attr = key.split("\t", 1)
+        module, _, qual = holder.partition(":")
+        if module not in cache:
+            base = os.path.join(root, *module.split("."))
+            path = base + ".py" if os.path.exists(base + ".py") else os.path.join(base, "__init__.py")
+            targets: dict = {}
+            try:
+                tree = ast.parse(open(path, encoding="utf-8").read())
+            except (OSError, SyntaxError, ValueError):
+                tree = None
+
+            def visit(body, prefix):
+                for node in body:
+                    if isinstance(node, (ast.For, ast.AsyncFor)):
+                        for name in ast.walk(node.target):
+                            if isinstance(name, ast.Name):
+                                targets.setdefault(prefix, set()).add(name.id)
+                    elif isinstance(node, ast.ClassDef):
+                        visit(node.body, (prefix + "." if prefix else "") + node.name)
+
+            if tree is not None:
+                visit(tree.body, "")
+            cache[module] = targets
+        return attr in cache[module].get(qual, set())
+
+    return check
+
+
+def _pinned_from_file():
+    """Pinned fingerprints computed when the image was built (Dockerfile), if any."""
+    import gzip
+
+    path = os.environ.get("BR_PINNED_STATE") or os.path.join(os.path.dirname(HERE), "maps", "pinned_state.json.gz")
+    if not os.path.exists(path):
+        return None
+    try:
+        with gzip.open(path, "rt") as handle:
+            data = json.load(handle)
+        return [data["seed1"], data["seed2"]]
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0) -> str:
     """Narrow the key-record sites of `found` in place. Returns a note for the log."""
     from .verify import build_overlay
@@ -77,6 +128,10 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
         build_overlay(overlay, root, files)
     except Exception as error:  # noqa: BLE001
         return f"keys: overlay failed ({error!r})"
+    if not _PINNED:
+        stored = _pinned_from_file()
+        if stored is not None:
+            _PINNED.extend(stored)
     procs = {"patched": _start(overlay, 0)}
     if not _PINNED:
         procs["p1"] = _start(root, 1)
@@ -92,7 +147,7 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
     from .keyrec import changed_entries
 
     changed_paths = {c.path for c in changes} | {c.old_path for c in changes if c.old_path}
-    changed = changed_entries(pinned1, pinned2, patched, changed_paths)
+    changed = changed_entries(pinned1, pinned2, patched, changed_paths, _loop_leftovers(root))
     if changed is None:
         return "keys: other state changed"
     if not changed:
@@ -116,3 +171,15 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
             imp |= report.site_masks[j]
         report.imp = imp
     return f"keys: {sum(len(k) for k in changed.values())} entries of {len(changed)} dicts"
+
+
+def build_pinned(root: str, out: str) -> None:
+    """Fingerprint the pinned tree under two hash seeds and store both (run when the
+    image is built, so a run only fingerprints patched trees)."""
+    import gzip
+
+    results = [_finish(proc, 600) for proc in (_start(root, 1), _start(root, 2))]
+    if any(r is None for r in results):
+        raise SystemExit("pinned fingerprint failed")
+    with gzip.open(out, "wt", compresslevel=9) as handle:
+        json.dump({"seed1": results[0], "seed2": results[1]}, handle)

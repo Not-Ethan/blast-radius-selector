@@ -32,6 +32,9 @@ RUN python -m compileall -q -j 0 /opt/sqlglot/sqlglot /opt/sqlglot/tests /opt/sq
 
 COPY selector /app/selector
 COPY maps /app/maps
-RUN python -m compileall -q /app/selector && chmod -R a+rX /app
+# State fingerprint of the pinned tree under two hash seeds, used to see which dict
+# entries a patch changes at import time (selector/keyrefine.py).
+RUN python -c "import sys; sys.path.insert(0, '/app'); from selector import keyrefine; keyrefine.build_pinned('/opt/sqlglot', '/app/maps/pinned_state.json.gz')" \
+    && python -m compileall -q /app/selector && chmod -R a+rX /app
 
 CMD ["python", "/app/selector/main.py"]

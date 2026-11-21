@@ -79,9 +79,13 @@ def main():
                     raise ValueError("unparsed patch or repeated file section")
                 found = finder.analyze(changes)
                 key_note = ""
-                if not found.unknown and any(getattr(f, "keyrec_sites", None) for f in found.files):
+                if not found.unknown and any(getattr(f, "keyrec_sites", None) for f in found.files) \
+                        and time.monotonic() - START < total_limit * 0.3:
                     try:
-                        key_note = keyrefine.refine(found, changes, ROOT, TMP, maps, log)
+                        # never let the fingerprints eat into the analysis budget
+                        budget = START + total_limit * 0.4 - time.monotonic()
+                        key_note = keyrefine.refine(found, changes, ROOT, TMP, maps, log,
+                                                    timeout=max(5.0, min(60.0, budget)))
                     except Exception as error:  # noqa: BLE001 - only a narrowing: keep the masks
                         key_note = f"keys: failed ({error!r})"
                 plan = policy.plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_numbers)
