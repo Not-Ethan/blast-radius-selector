@@ -80,13 +80,14 @@ def main():
                 found = finder.analyze(changes)
                 key_note = ""
                 if not found.unknown and any(getattr(f, "keyrec_sites", None) or getattr(f, "modrec_sites", None)
-                                             for f in found.files) \
-                        and time.monotonic() - START < total_limit * 0.3:
+                                             or getattr(f, "classrec_sites", None) for f in found.files) \
+                        and time.monotonic() - START < total_limit * 0.3 \
+                        and policy.state_check_worthwhile(found, maps, map_to_number, seconds_of):
                     try:
                         # never let the fingerprints eat into the analysis budget
                         budget = START + total_limit * 0.4 - time.monotonic()
                         key_note = keyrefine.refine(found, changes, ROOT, TMP, maps, log,
-                                                    timeout=max(5.0, min(60.0, budget)))
+                                                    timeout=max(5.0, min(60.0, budget)), finder=finder)
                     except Exception as error:  # noqa: BLE001 - only a narrowing: keep the masks
                         key_note = f"keys: failed ({error!r})"
                 plan = policy.plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_numbers)

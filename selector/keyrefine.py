@@ -101,7 +101,7 @@ def _pinned_from_file():
         return None
 
 
-def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0) -> str:
+def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0, finder=None) -> str:
     """Narrow the key-record and module-record sites of `found` in place, if the state
     fingerprints allow it. Returns a note for the log."""
     from .keyrec import state_changes
@@ -109,7 +109,8 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
 
     key_sites = [(f, i) for f in found.files for i in getattr(f, "keyrec_sites", [])]
     mod_sites = [(f, i, alt) for f in found.files for i, alt in getattr(f, "modrec_sites", {}).items()]
-    if not key_sites and not mod_sites:
+    class_sites = [(f, i) for f in found.files for i in getattr(f, "classrec_sites", [])]
+    if not key_sites and not mod_sites and not class_sites:
         return ""
     if any(c.binary for c in changes):
         return "state: binary change"
@@ -151,44 +152,61 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
         return "state: unreadable change"
     dicts, others = res
     allowed = {f"{m}\t{n}" for _, _, (_, group) in mod_sites for m, n in group}
-    if others - allowed:
-        return "state: other values changed"
-    # Changed dict entries: key records narrow the key sites when every changed dict
-    # has usable records; a changed dict without them is only acceptable when it is one
-    # of the module bindings (whose readers the module sites' masks already cover).
+    # Every other change of the program state, and who can see it at runtime:
+    # changed class attributes through the class-attribute rule without import-time
+    # lines (their import-time readers' effects are themselves in this comparison),
+    # changed dict entries through the key records. Module bindings other than the
+    # module sites' own, or a class the class map does not know, keep the old masks.
+    extra = 0
+    notes = []
+    attrs = 0
+    for key in sorted(others - allowed):
+        holder, attr = key.split("\t", 1)
+        if ":" not in holder or finder is None or not class_sites:
+            return "state: " + holder + "." + attr + " changed"
+        m = finder.runtime_attr_mask(holder, attr)
+        if m is None:
+            return f"state: {holder} not in the class map"
+        extra |= m
+        attrs += 1
+    if attrs:
+        notes.append(f"{attrs} class attributes")
     rec = getattr(maps, "keyrec", None) or {}
     unrecordable = set(rec.get("unrecordable", ()))
     holders = set(rec.get("holders", ()))
     lookups = rec.get("lookups", {})
     narrowed = 0
-    key_ok = bool(dicts) and bool(key_sites)
+    keyed = 0
     for holder, keys in dicts.items():
         if holder in unrecordable or holder not in holders:
             if holder not in allowed:
                 return f"state: {holder} has no usable records"
-            key_ok = False
             continue
+        keyed += 1
         by_key = lookups.get(holder, {})
         for k in set(keys) | {"*"}:
             narrowed |= maps.mask(by_key.get(k))
-    notes = []
-    if key_ok:
-        keep = narrowed | (maps.all_mask & ~maps.mask(rec.get("traced")))
-        for report, index in key_sites:
-            report.site_masks[index] &= keep
-        notes.append(f"{sum(len(k) for k in dicts.values())} entries of {len(dicts)} dicts")
-    elif key_sites and not mod_sites:
-        return "state: no usable dict entry change"
+    if keyed:
+        extra |= narrowed | (maps.all_mask & ~maps.mask(rec.get("traced")))
+        notes.append(f"{sum(len(k) for h, k in dicts.items() if h not in allowed)} entries of {keyed} dicts")
+    done = set()
+    for report, index in key_sites + class_sites:
+        if (id(report), index) not in done:
+            report.site_masks[index] &= extra
+            done.add((id(report), index))
     for report, index, (alt, _group) in mod_sites:
-        report.site_masks[index] &= alt
+        if (id(report), index) not in done:
+            report.site_masks[index] &= alt | extra
+            done.add((id(report), index))
     if mod_sites:
         notes.append(f"{len(mod_sites)} module bindings through records")
+    if not notes:
+        notes.append("nothing else changed")
     for report in found.files:
-        if getattr(report, "keyrec_sites", None) or getattr(report, "modrec_sites", None):
-            imp = 0
-            for j in getattr(report, "imp_sites", []):
-                imp |= report.site_masks[j]
-            report.imp = imp
+        imp = 0
+        for j in getattr(report, "imp_sites", []):
+            imp |= report.site_masks[j]
+        report.imp = imp
     return "state: " + ", ".join(notes)
 
 

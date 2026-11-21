@@ -44,6 +44,9 @@ class FileReport:
     # string-keyed dict (selector/keyrefine.py may narrow them)
     imp_sites: list = field(default_factory=list)
     keyrec_sites: list = field(default_factory=list)
+    # class-body assignments whose readers keyrefine can re-derive from the state
+    # fingerprints (selector/keyrefine.py, runtime_attr_mask)
+    classrec_sites: list = field(default_factory=list)
     # index into site_masks -> (narrower mask, {(module, name)} bindings it may change):
     # a module-level value edit whose runtime readers through module objects are taken
     # from the build-time records; keyrefine applies it when the state fingerprint shows
@@ -340,6 +343,10 @@ class CandidateFinder:
                 alt = self._module_site_alternative(rel, module, site)
                 if alt is not None:
                     report.modrec_sites[len(report.site_masks)] = alt
+                if site.scope == "class" and site.kind == "stmt" and site.names \
+                        and not any(n.startswith("__") and n.endswith("__") for n in site.names) \
+                        and getattr(site, "same_binding", False):
+                    report.classrec_sites.append(len(report.site_masks))
                 if site.dict_keys and site.kind != "docstring" and getattr(site, "dict_order_same", False):
                     report.keyrec_sites.append(len(report.site_masks))
                 if not site.value_safe:
@@ -506,6 +513,14 @@ class CandidateFinder:
                 mask |= usage
         return mask
 
+    def _mod(self, py, lines) -> int:
+        """Coverage of module/class-level (import-time) execution of `lines`; nothing
+        in runtime-only mode, where import-time effects are known from the state
+        fingerprints instead."""
+        if getattr(self, "_runtime_only", False):
+            return 0
+        return self.maps.mod_mask(py, lines)
+
     def _hits_mask(self, py, raw, hits) -> int:
         """Coverage of lines that read a changed name. A read at import time
         inside an entry of a class-level dict literal (FUNCTIONS = {"DATEADD":
@@ -513,6 +528,8 @@ class CandidateFinder:
         so it is narrowed like a change to that entry."""
         maps = self.maps
         mask = maps.func_mask(py, hits)
+        if getattr(self, "_runtime_only", False):
+            return mask
         mod_hits = [h for h in hits if maps.mod_mask(py, [h])]
         if not mod_hits:
             return mask
@@ -676,6 +693,30 @@ class CandidateFinder:
                 hits.update(range(first, last + 1))
         return (hits, runtime_attrs) if split else hits
 
+    def runtime_attr_mask(self, holder, attr):
+        """Tests that can read class attribute holder.attr at runtime, given that its
+        import-time readers' effects are known (keyrefine compares the whole program
+        state): the class-attribute rule (class users, or tests that read it through
+        the class name, AND lines that mention the name, typed where recorded,
+        computed-name readers) with every module/class-level line left out. None when
+        the class is unknown to the class map."""
+        maps = self.maps
+        module = holder.split(":", 1)[0]
+        base = module.replace(".", "/")
+        rel = base + ".py" if os.path.exists(os.path.join(self.root, base + ".py")) else base + "/__init__.py"
+        self._runtime_only = True
+        try:
+            usage = self._class_usage(holder)
+            if usage is None:
+                return None
+            cross = self._class_name_reads(holder, {attr})
+            if cross is None:
+                return None
+            refs = self._name_refs({attr}, rel, [], ("object",), owner=holder if holder in maps.classes else None)
+        finally:
+            self._runtime_only = False
+        return maps.import_mask(rel) & (usage | cross) & refs
+
     def _class_name_reads(self, key, names):
         """Tests that ran a line reading one of `names` through the class `key` (or a
         subclass) spelled by name (`MySQL.TIME_MAPPING` in Presto's class body,
@@ -695,7 +736,7 @@ class CandidateFinder:
             for rel, line, attr in maps.xreads.get(k, ()):
                 if names and attr not in names:
                     continue
-                mask |= maps.func_mask(rel, [line]) | maps.mod_mask(rel, [line])
+                mask |= maps.func_mask(rel, [line]) | self._mod(rel, [line])
         return mask
 
     def _class_usage(self, key, family=True):
@@ -738,7 +779,7 @@ class CandidateFinder:
         a typed record for it."""
         maps = self.maps
         table = maps.typed if table is None else table
-        ran = maps.func_mask(py, [line]) | maps.mod_mask(py, [line])
+        ran = maps.func_mask(py, [line]) | self._mod(py, [line])
         recorded = 0
         hit = 0
         for key, k in table[py][str(line)].items():
@@ -798,7 +839,7 @@ class CandidateFinder:
             cache[key] = inside
         if cache[key]:
             return maps.func_mask(rel, [line])
-        return maps.func_mask(rel, [line]) | maps.mod_mask(rel, [line])
+        return maps.func_mask(rel, [line]) | self._mod(rel, [line])
 
     def _class_only_reader(self, rel, line) -> bool:
         """Whether the computed-name attribute read at rel:line can only use a
@@ -927,7 +968,7 @@ class CandidateFinder:
         if str(line) in maps.typed.get(py, {}):
             ran = self._typed_mask(py, line, owner)
         else:
-            ran = maps.func_mask(py, [line]) | maps.mod_mask(py, [line])
+            ran = maps.func_mask(py, [line]) | self._mod(py, [line])
         out = ran & ~maps.mask(tc["traced"])
         observers = self._tokcore_observers()
         for setting, field_name, through_bool in plumbs:

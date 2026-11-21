@@ -331,6 +331,24 @@ def case_full_costs(maps, node):
     return outside + warm, {k: max(0.0, m - warm) for k, m in enumerate(marginal)}
 
 
+STATE_CHECK_CPU = float(os.environ.get("BR_STATE_CHECK_CPU", "1.4"))  # local CPU s of one fingerprint run
+
+
+def state_check_worthwhile(found, maps, map_to_number, seconds_of) -> bool:
+    """Run the state comparison (selector/keyrefine.py) only when it can save more
+    than it costs: including the import-time candidates it may narrow must cost more
+    (2 s for a worker plus their recorded seconds spread over 8 workers, a lower bound
+    on packing them) than the comparison's CPU at the planner's CPU scale."""
+    imp = 0
+    for f in found.files:
+        imp |= f.imp
+    tests = [map_to_number[i] for i in maps.tests_of(imp) if i < len(map_to_number) and map_to_number[i] is not None]
+    if not tests:
+        return False
+    worth = 2.0 + sum(seconds_of.get(n, 0.0) for n in tests) / 8.0
+    return worth > STATE_CHECK_CPU * CPU_SCALE
+
+
 def restricted_estimate(maps, node, need, full_est) -> float:
     """CPU of a run restricted to `need`: the code outside the loops plus each
     kept case (per-case measurements when we have them, else a share of the
