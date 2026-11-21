@@ -50,10 +50,15 @@ def pytest_collection_modifyitems(session, config, items):
                 item.add_marker(pytest.mark.timeout(limits[item.nodeid]))
 
 
+TIMEOUTS = set()
+
+
 def pytest_runtest_logreport(report):
     RAN.add(report.nodeid)
     if report.failed:
         FAILED.add(report.nodeid)
+        if "Timeout" in str(getattr(report, "longrepr", "") or ""):
+            TIMEOUTS.add(report.nodeid)
 
 
 def pytest_collectreport(report):
@@ -67,4 +72,5 @@ def pytest_sessionfinish(session, exitstatus):
         with open(out, "w") as handle:
             json.dump({"failed": sorted(FAILED), "collect_failed": sorted(COLLECT_FAILED),
                        "not_collected": sorted((SELECTED or set()) - COLLECTED),
+                       "timeouts": sorted(TIMEOUTS),
                        "ran": len(RAN), "exitstatus": int(exitstatus)}, handle)

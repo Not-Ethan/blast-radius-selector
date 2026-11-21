@@ -89,6 +89,19 @@ class StageDone(Exception):
     """Raised right after the checked call returns, to skip the rest of a case."""
 
 
+class StageAbort(Exception):
+    """Raised when enough cases differ that the test will be included anyway:
+    stops the whole test run (the process-pool stand-in lets it through)."""
+
+    _br_abort = True
+
+
+# Early abort (set by the verification child): expected (after, after_input) per
+# input fingerprint, the case ordinal of each input, per-case cost of a full
+# re-run, the warm-up and the cap above which the test is included instead.
+ABORT = {"by_input": {}, "ordinal": {}, "cost": {}, "warm": 0.0, "cap": -1.0}
+
+
 # Set in the verification child: list of expected (input, output) fingerprints in
 # call order, and what was observed.
 EXPECTED: list = []
@@ -131,6 +144,15 @@ def install(module, attr="optimize"):
         after = fingerprint(result)
         after_input = fingerprint(args[0]) if args else fingerprint(kwargs.get("expression"))
         OBSERVED.append((before, after, after_input))
+        if ABORT["cap"] >= 0:
+            differing = set()
+            for call in OBSERVED:
+                expected = ABORT["by_input"].get(call[0])
+                if expected is None or (call[1], call[2]) not in expected:
+                    differing.add(ABORT["ordinal"].get(call[0], -1))
+            cost = ABORT["warm"] + sum(ABORT["cost"].get(k, ABORT["cap"] + 1.0) for k in differing)
+            if differing and cost > ABORT["cap"]:
+                raise StageAbort()
         raise StageDone()
 
     checked._br_stage = True

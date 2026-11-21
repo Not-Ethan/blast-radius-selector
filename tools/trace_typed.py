@@ -31,6 +31,8 @@ sys.path.insert(0, HERE)
 import trace_tests  # noqa: E402
 
 ATTR = re.compile(r"\b(?:self|cls)\.([A-Z][A-Z0-9_]+)\b")
+# Dialect settings read through the parser/generator/tokenizer's dialect object.
+DIALECT = re.compile(r"\bself\.dialect\.([A-Z][A-Z0-9_]+)\b")
 
 
 def interesting_lines(root):
@@ -41,10 +43,13 @@ def interesting_lines(root):
             if not name.endswith(".py"):
                 continue
             path = os.path.join(dirpath, name)
-            lines = set()
+            lines = {}
             for i, line in enumerate(open(path, encoding="utf-8").read().split("\n"), start=1):
-                if ATTR.search(line) and not line.lstrip().startswith("#"):
-                    lines.add(i)
+                if line.lstrip().startswith("#"):
+                    continue
+                kinds = (1 if ATTR.search(line) else 0) | (2 if DIALECT.search(line) else 0)
+                if kinds:
+                    lines[i] = kinds
             if lines:
                 out[path] = lines
     return out
@@ -54,16 +59,24 @@ def child(root, node, interesting, out_path, limit):
     mon = sys.monitoring
     tool = mon.COVERAGE_ID
     mon.use_tool_id(tool, "blast-radius-typed")
+    import inspect
+
     record: dict = {}
+    record_dialect: dict = {}
     mro: dict = {}  # receiver class key -> keys of its runtime MRO
     root_slash = root + os.sep
     getframe = sys._getframe
 
+    def note(cls):
+        key = f"{cls.__module__}:{cls.__qualname__}"
+        bases = {f"{c.__module__}:{c.__qualname__}" for c in getattr(cls, "__mro__", (cls,))}
+        mro.setdefault(key, set()).update(bases)
+        return key
+
     def on_line(code, line):
         lines = interesting.get(code.co_filename)
-        if lines is None or line not in lines:
-            return mon.DISABLE
-        if code.co_argcount == 0:
+        kinds = lines.get(line) if lines is not None else None
+        if not kinds or code.co_argcount == 0:
             return mon.DISABLE
         first = code.co_varnames[0]
         if first not in ("self", "cls"):
@@ -72,13 +85,22 @@ def child(root, node, interesting, out_path, limit):
             obj = getframe(1).f_locals.get(first)
         except Exception:  # noqa: BLE001
             obj = None
-        cls = obj if (first == "cls" and isinstance(obj, type)) else type(obj)
-        key = f"{cls.__module__}:{cls.__qualname__}"
-        record.setdefault(code.co_filename[len(root_slash):], {}).setdefault(line, set()).add(key)
-        if key not in mro:
-            mro[key] = {f"{c.__module__}:{c.__qualname__}" for c in getattr(cls, "__mro__", (cls,))}
-        else:
-            mro[key].update(f"{c.__module__}:{c.__qualname__}" for c in getattr(cls, "__mro__", (cls,)))
+        rel = code.co_filename[len(root_slash):]
+        if kinds & 1:
+            cls = obj if (first == "cls" and isinstance(obj, type)) else type(obj)
+            record.setdefault(rel, {}).setdefault(line, set()).add(note(cls))
+        if kinds & 2 and first == "self":
+            # self.dialect without running descriptors: an instance attribute or a slot
+            try:
+                raw = inspect.getattr_static(obj, "dialect", None)
+                if type(raw).__name__ == "member_descriptor":
+                    raw = getattr(obj, "dialect", None)
+                elif isinstance(raw, (property, staticmethod, classmethod)) or callable(raw):
+                    raw = None
+            except Exception:  # noqa: BLE001
+                raw = None
+            if raw is not None:
+                record_dialect.setdefault(rel, {}).setdefault(line, set()).add(note(type(raw)))
         return None
 
     mon.register_callback(tool, mon.events.LINE, on_line)
@@ -90,7 +112,8 @@ def child(root, node, interesting, out_path, limit):
     finally:
         mon.set_events(tool, 0)
     data = {"failed": node in failed, "mro": {k: sorted(v) for k, v in mro.items()},
-            "typed": {f: {str(l): sorted(k) for l, k in lines.items()} for f, lines in record.items()}}
+            "typed": {f: {str(l): sorted(k) for l, k in lines.items()} for f, lines in record.items()},
+            "typed_dialect": {f: {str(l): sorted(k) for l, k in lines.items()} for f, lines in record_dialect.items()}}
     with open(out_path, "w") as handle:
         json.dump(data, handle)
 
@@ -147,6 +170,7 @@ def main():
         if done % 100 == 0:
             print(f"{done} done, {len(pending)} pending", file=sys.stderr)
     merged = {}
+    merged_dialect = {}
     mro = {}
     dropped = []
     number_to_id = {str(t["number"]): t["id"] for t in tests}
@@ -159,9 +183,11 @@ def main():
             dropped.append(node)
             continue
         merged[node] = data["typed"]
+        merged_dialect[node] = data.get("typed_dialect", {})
         for k, v in data.get("mro", {}).items():
             mro.setdefault(k, set()).update(v)
-    json.dump({"typed": merged, "mro": {k: sorted(v) for k, v in mro.items()}, "dropped": sorted(dropped)},
+    json.dump({"typed": merged, "typed_dialect": merged_dialect, "mro": {k: sorted(v) for k, v in mro.items()},
+               "dropped": sorted(dropped)},
               open(o.out, "w"))
     print(f"typed records for {len(merged)} tests; dropped {dropped}", file=sys.stderr)
 

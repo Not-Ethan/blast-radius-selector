@@ -45,7 +45,20 @@ ones against the patched tree and keep only the ones that fail.**
      only for tests that ran it with a receiver that is the changed class or a
      subclass (*typed coverage*, `tools/trace_typed.py`: each test traced alone from a
      fresh interpreter, recording the runtime class of `self`/`cls` and its MRO; a test
-     without a record for that line is kept). For dicts keyed
+     without a record for that line is kept). The same holds for lines that read it
+     only as `self.dialect.NAME` (dialect settings read by the shared parser/generator),
+     with the recorded class of the dialect object.
+     For a module-level assignment that keeps the same names bound (only the value
+     changed), `from module import NAME` lines are not reads in themselves: the
+     importing module's later uses of `NAME` are, and modules that re-export the name
+     are followed transitively (star imports still count as reads). Readers of module
+     attributes by computed name that can only use classes (`inspect.getmembers` with an
+     `isclass` predicate, `getattr(m, name)()`) are skipped when both values are plain
+     data (constants, displays, comprehensions). An import-time change whose new value is
+     not provably safe to evaluate (a display of constants, or a comprehension of string
+     methods over string constants) makes the verifier import the changed module (a
+     zero-test job if nothing else is verified); if that import fails, or cannot be
+     checked, every importer is included. For dicts keyed
      by sqlglot classes (`TRANSFORMS = {exp.Foo: ...}`) only tests that built an
      `exp.Foo` remain; for dicts keyed by SQL text (`FUNCTIONS`, `KEYWORDS`,
      `*_PARSERS`, `*_MAPPING`) only tests whose source or fixtures contain the key;
@@ -112,7 +125,7 @@ ones against the patched tree and keep only the ones that fail.**
    calling sqlglot code) and stops each case. Calls are matched to cases by the
    fingerprint of their input; cases whose output differs (or whose call is missing)
    are then run in full, when that costs less than including the test; otherwise the
-   test is included.
+   test is included, and the check stops as soon as that is certain.
 
    A test is restricted only when every reason it is a candidate is attributable to
    cases; otherwise (no per-case coverage, another data file it reads, a change that no

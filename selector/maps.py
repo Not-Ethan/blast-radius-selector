@@ -42,6 +42,8 @@ class Maps:
         # optimize() fingerprints of each case at the pinned commit.
         self.stage = data.get("stage", {})
         self.typed_mro = {k: set(v) for k, v in data.get("typed_mro", {}).items()}
+        # ... and the class of the dialect object on lines reading self.dialect.NAME
+        self.typed_dialect = data.get("typed_dialect", {})
         # Tests that loop over fixture cases (tools/build_cases.py): id -> [(fixture, kind)]
         self.case_tests = {}
         self.case_counts = {}

@@ -29,19 +29,25 @@ def main():
             sets.append(mask)
         return k
 
-    table = {}
-    for node, files in typed["typed"].items():
-        i = index.get(node)
-        if i is None:
-            continue
-        bit = 1 << i
-        for f, lines in files.items():
-            for line, keys in lines.items():
-                bucket = table.setdefault(f, {}).setdefault(line, {})
-                for key in keys:
-                    bucket[key] = bucket.get(key, 0) | bit
-    data["typed"] = {f: {line: {k: intern(m) for k, m in sorted(b.items())} for line, b in sorted(lines.items(), key=lambda x: int(x[0]))}
-                     for f, lines in sorted(table.items())}
+    def build(records):
+        table = {}
+        for node, files in records.items():
+            i = index.get(node)
+            if i is None:
+                continue
+            bit = 1 << i
+            for f, lines in files.items():
+                for line, keys in lines.items():
+                    bucket = table.setdefault(f, {}).setdefault(line, {})
+                    for key in keys:
+                        bucket[key] = bucket.get(key, 0) | bit
+        return table, {f: {line: {k: intern(m) for k, m in sorted(b.items())}
+                           for line, b in sorted(lines.items(), key=lambda x: int(x[0]))}
+                       for f, lines in sorted(table.items())}
+
+    table, data["typed"] = build(typed["typed"])
+    # receivers of self.dialect.NAME reads (class of the dialect object)
+    _, data["typed_dialect"] = build(typed.get("typed_dialect", {}))
     data["typed_mro"] = typed["mro"]
     data["sets"] = [format(m, "x") for m in sets]
     with gzip.open(out, "wt", compresslevel=9) as handle:

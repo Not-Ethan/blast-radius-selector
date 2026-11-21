@@ -32,6 +32,8 @@ class SyncProcessPoolExecutor:
             result = fn(*args, **kwargs)
             result = _pickle.loads(_pickle.dumps(result))
         except BaseException as error:  # noqa: BLE001 - mirrored into the future
+            if getattr(error, "_br_abort", False):
+                raise  # a stage check decided: stop the whole test (selector/stage.py)
             future.set_exception(error)
         else:
             future.set_result(result)

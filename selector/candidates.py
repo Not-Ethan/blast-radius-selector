@@ -36,6 +36,10 @@ class FileReport:
     new_text: str | None = None
     old_text: str | None = None  # data files only
     site_masks: list = field(default_factory=list)  # one mask per Python change site (func/imp)
+    # A change that runs when the module is imported (class/module level, decorators,
+    # defaults) and might raise there: the verifier imports the module, and if that
+    # fails every importer is included.
+    import_check: bool = False
 
 
 @dataclass
@@ -319,6 +323,10 @@ class CandidateFinder:
             else:
                 mask = self._import_site_mask(rel, module, site)
                 report.imp |= mask
+                if not site.value_safe:
+                    report.import_check = True
+            if site.kind == "def-header" and site.scope == "function" and not site.lines:
+                report.import_check = True  # defaults and annotations run at import
             report.site_masks.append(mask)
 
     # -- import-time changes ---------------------------------------------------
@@ -372,7 +380,9 @@ class CandidateFinder:
             return base
         # A module-level name is read by this module's own code, or by modules
         # that reach it through this module (import it, or name it).
-        return base & self._name_refs(names, rel, site.lines, ("object", "module", "instance"), module=module)
+        return base & self._name_refs(names, rel, site.lines, ("object", "module", "instance"), module=module,
+                                      same_binding=getattr(site, "same_binding", False),
+                                      plain_value=getattr(site, "plain_value", False))
 
     def _dict_key_usage(self, keys, names=(), within=None):
         """Tests that could look up these dict entries.
@@ -524,10 +534,7 @@ class CandidateFinder:
         cache[py] = out
         return out
 
-    def _external_module_refs(self, py, raw, module, names) -> set:
-        """Lines of another file that can see `module`'s binding of one of
-        `names`: everything mentioning a name it imports from the module, and
-        attribute accesses <...module>.NAME."""
+    def _tree(self, py, raw):
         import ast as _ast
 
         cache = self.__dict__.setdefault("_trees", {})
@@ -536,32 +543,87 @@ class CandidateFinder:
             try:
                 tree = _ast.parse(raw)
             except SyntaxError:
-                return set(range(1, raw.count(b"\n") + 2))  # cannot tell: everything
+                return None
             cache[py] = tree
-        package = py[:-3].replace("/", ".").rsplit(".", 1)[0]
-        leaf = module.rsplit(".", 1)[-1]
+        return tree
+
+    @staticmethod
+    def _import_base(py, node):
+        base = node.module or ""
+        if node.level:
+            package = py[:-3].replace("/", ".").rsplit(".", 1)[0]
+            parts = package.split(".")
+            base = ".".join(parts[: len(parts) - node.level + 1] + ([base] if base else []))
+        return base
+
+    def _external_module_refs(self, py, raw, module, names, modules=None, keep_import_lines=True) -> set:
+        """Lines of another file that can see `module`'s binding of one of
+        `names`: everything mentioning a name it imports from the module, and
+        attribute accesses <...module>.NAME. `modules` (default {module}) also
+        counts modules that re-export the binding. With keep_import_lines=False
+        (the edit only changed the value bound to the names), a `from M import
+        NAME` line is not itself a read: it binds the same object, and the
+        module's later reads of NAME are lines of their own. Star imports stay
+        reads (which names they bind is not visible here)."""
+        import ast as _ast
+
+        tree = self._tree(py, raw)
+        if tree is None:
+            return set(range(1, raw.count(b"\n") + 2))  # cannot tell: everything
+        modules = modules or {module}
+        leaves = {m.rsplit(".", 1)[-1] for m in modules}
         imported = set()
         hits = set()
         for node in _ast.walk(tree):
             if isinstance(node, _ast.ImportFrom):
-                base = node.module or ""
-                if node.level:
-                    parts = package.split(".")
-                    base = ".".join(parts[: len(parts) - node.level + 1] + ([base] if base else []))
-                if base == module:
+                if self._import_base(py, node) in modules:
                     for alias in node.names:
-                        if alias.name in names or alias.name == "*":
-                            imported.add(alias.asname or alias.name)
+                        if alias.name == "*":
+                            imported.update(names)
                             hits.add(node.lineno)
+                        elif alias.name in names:
+                            imported.add(alias.asname or alias.name)
+                            if keep_import_lines:
+                                hits.add(node.lineno)
             elif isinstance(node, _ast.Attribute) and node.attr in names:
                 value = node.value
-                if (isinstance(value, _ast.Name) and value.id == leaf) or (isinstance(value, _ast.Attribute) and value.attr == leaf):
+                if (isinstance(value, _ast.Name) and value.id in leaves) or (isinstance(value, _ast.Attribute) and value.attr in leaves):
                     hits.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
         if imported:
             for node in _ast.walk(tree):
                 if isinstance(node, _ast.Name) and node.id in imported:
                     hits.add(node.lineno)
         return hits
+
+    def _reexporters(self, module, names) -> set:
+        """`module` plus every module that binds one of `names` by importing it
+        from a module already in the set (transitively)."""
+        import ast as _ast
+
+        needles = [n.encode() for n in names]
+        found = {module}
+        changed = True
+        while changed:
+            changed = False
+            for py in self._all_py_files():
+                raw = self._source(py)
+                if not any(needle in raw for needle in needles):
+                    continue
+                mod = py[:-3].replace("/", ".")
+                if mod.endswith(".__init__"):
+                    mod = mod[: -len(".__init__")]
+                if mod in found:
+                    continue
+                tree = self._tree(py, raw)
+                if tree is None:
+                    continue
+                for node in _ast.walk(tree):
+                    if isinstance(node, _ast.ImportFrom) and self._import_base(py, node) in found \
+                            and any(a.name in names for a in node.names):
+                        found.add(mod)
+                        changed = True
+                        break
+        return found
 
     def _class_usage(self, key, family=True):
         maps = self.maps
@@ -596,15 +658,17 @@ class CandidateFinder:
             cache[rel] = self._read(rel) or b""
         return cache[rel]
 
-    def _typed_mask(self, py, line, owner) -> int:
+    def _typed_mask(self, py, line, owner, table=None) -> int:
         """Tests that ran `line` (which reads the changed names only as self.NAME /
-        cls.NAME) with a receiver that is `owner` or a subclass, plus every test
-        that ran it without a typed record for it."""
+        cls.NAME, or only as self.dialect.NAME with table=typed_dialect) with a
+        receiver that is `owner` or a subclass, plus every test that ran it without
+        a typed record for it."""
         maps = self.maps
+        table = maps.typed if table is None else table
         ran = maps.func_mask(py, [line]) | maps.mod_mask(py, [line])
         recorded = 0
         hit = 0
-        for key, k in maps.typed[py][str(line)].items():
+        for key, k in table[py][str(line)].items():
             m = maps.mask(k)
             recorded |= m
             ancestors = maps.typed_mro.get(key)
@@ -623,13 +687,61 @@ class CandidateFinder:
             mentioned = mentioned or total > 0
         return mentioned
 
-    def _name_refs(self, names, site_rel, site_lines, kinds, module=None, owner=None) -> int:
+    def _class_only_reader(self, rel, line) -> bool:
+        """Whether the computed-name attribute read at rel:line can only use a
+        class: `inspect.getmembers(m, pred)` whose predicate starts with
+        `inspect.isclass(...)` (and), or `getattr(m, name)(...)` (the value is
+        called). A change between two plain-data values (neither a class nor
+        callable) cannot change what such a reader does."""
+        import ast as _ast
+
+        cache = self.__dict__.setdefault("_class_only", {})
+        key = (rel, line)
+        if key in cache:
+            return cache[key]
+        result = False
+        raw = self._source(rel)
+        tree = self._tree(rel, raw) if raw else None
+        if tree is not None:
+            for node in _ast.walk(tree):
+                if not isinstance(node, _ast.Call) or not (node.lineno <= line <= (node.end_lineno or node.lineno)):
+                    continue
+                func = node.func
+                name = func.attr if isinstance(func, _ast.Attribute) else getattr(func, "id", None)
+                if name == "getmembers" and len(node.args) >= 2 and isinstance(node.args[1], _ast.Lambda):
+                    body = node.args[1].body
+                    first = body.values[0] if isinstance(body, _ast.BoolOp) and isinstance(body.op, _ast.And) else body
+                    if isinstance(first, _ast.Call):
+                        f = first.func
+                        if (f.attr if isinstance(f, _ast.Attribute) else getattr(f, "id", None)) == "isclass":
+                            result = True
+                if isinstance(func, _ast.Call):
+                    inner = func.func
+                    if getattr(inner, "id", None) == "getattr":
+                        result = True
+        cache[key] = result
+        return result
+
+    @staticmethod
+    def _only_dialect_reads(line, names) -> bool:
+        """The line mentions the names, and every mention is `self.dialect.NAME`."""
+        mentioned = False
+        for name in names:
+            total = len(re.findall(r"\b" + re.escape(name) + r"\b", line))
+            if total and total != len(re.findall(r"\bself\.dialect\." + re.escape(name) + r"\b", line)):
+                return False
+            mentioned = mentioned or total > 0
+        return mentioned
+
+    def _name_refs(self, names, site_rel, site_lines, kinds, module=None, owner=None, same_binding=False,
+                   plain_value=False) -> int:
         maps = self.maps
         needles = [n.encode() for n in names]
         module_needles = None
+        modules = None
         if module:
-            leaf = module.rsplit(".", 1)[-1]
-            module_needles = [module.encode(), leaf.encode()]
+            modules = self._reexporters(module, names) if same_binding else {module}
+            module_needles = [m.encode() for m in modules] + [m.rsplit(".", 1)[-1].encode() for m in modules]
         alternatives = "|".join(re.escape(n) for n in sorted(names))
         pattern = re.compile(r"\b(?:" + alternatives + r")\b")
         definition = re.compile(r"^\s*(?:" + alternatives + r")\s*(?::[^=]*)?=(?!=)")
@@ -641,7 +753,8 @@ class CandidateFinder:
             if module_needles is not None and py != site_rel:
                 if not any(n in raw for n in module_needles):
                     continue
-                hits = self._external_module_refs(py, raw, module, names)
+                hits = self._external_module_refs(py, raw, module, names, modules=modules,
+                                                  keep_import_lines=not same_binding)
                 if hits:
                     mask |= self._hits_mask(py, raw, hits)
                 continue
@@ -661,16 +774,24 @@ class CandidateFinder:
                     hits.update((i - 1, i - 2, i - 3))
             if py == site_rel:
                 hits -= set(site_lines)
-            if owner is not None and maps.typed.get(py):
+            if owner is not None and (maps.typed.get(py) or getattr(maps, "typed_dialect", {}).get(py)):
                 # A class attribute changed in class `owner`: a line that only reads
-                # it as self.NAME / cls.NAME sees the change only when the receiver
-                # is `owner` or a subclass (typed coverage); other lines as usual.
-                typed_lines = maps.typed[py]
+                # it as self.NAME / cls.NAME (or as self.dialect.NAME) sees the change
+                # only when the receiver (or the dialect object) is `owner` or a
+                # subclass (typed coverage); other lines as usual.
+                typed_lines = maps.typed.get(py, {})
+                dialect_lines = getattr(maps, "typed_dialect", {}).get(py, {})
                 text = raw.decode("utf-8", "replace").split("\n")
-                narrowed = {i for i in hits if str(i) in typed_lines and 0 < i <= len(text)
-                            and self._only_attribute_reads(text[i - 1], names)}
-                for i in narrowed:
-                    mask |= self._typed_mask(py, i, owner)
+                narrowed = set()
+                for i in hits:
+                    if not 0 < i <= len(text):
+                        continue
+                    if str(i) in typed_lines and self._only_attribute_reads(text[i - 1], names):
+                        mask |= self._typed_mask(py, i, owner)
+                        narrowed.add(i)
+                    elif str(i) in dialect_lines and self._only_dialect_reads(text[i - 1], names):
+                        mask |= self._typed_mask(py, i, owner, table=maps.typed_dialect)
+                        narrowed.add(i)
                 hits -= narrowed
             mask |= self._hits_mask(py, raw, hits)
         for rel, line, regex, kind in maps.dynamic:
@@ -684,6 +805,8 @@ class CandidateFinder:
                 expressions = site_rel.startswith("sqlglot/expressions/") and rel in ("sqlglot/serde.py", "sqlglot/helper.py")
                 if not (same_package or expressions):
                     continue
+            if plain_value and self._class_only_reader(rel, line):
+                continue
             if regex is None or any(re.fullmatch(regex, n) for n in names):
                 mask |= maps.func_mask(rel, [line]) | maps.mod_mask(rel, [line])
         return mask

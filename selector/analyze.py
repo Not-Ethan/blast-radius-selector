@@ -52,6 +52,14 @@ class Site:
     # entry keys involved, as ("str", text) / ("attr", name) / ("name", id) /
     # ("other",). None when the change is not confined to dict entries.
     dict_keys: list | None = None
+    # An assignment whose targets (plain names) are unchanged: only the value differs.
+    same_binding: bool = False
+    # ... and old and new values are displays of constants (sets, lists, tuples, dicts,
+    # strings, numbers): never a class, never callable.
+    plain_value: bool = False
+    # ... and evaluating the new value at import cannot raise (else the module's
+    # import is checked at decision time: if it fails, every importer fails).
+    value_safe: bool = False
     # For a function-scope change confined to side-effect-free expressions:
     # [(old expression source, (lineno, col, end_lineno, end_col) of the new
     # expression in the new file, used as a truth value?)]. The verifier can
@@ -126,6 +134,48 @@ def _constant_value(node) -> bool:
         return all(k is not None and isinstance(k, ast.Constant) for k in node.keys) \
             and all(_constant_value(v) for v in node.values)
     return False
+
+
+_SAFE_STR_METHODS = {"lower", "upper", "casefold", "strip", "lstrip", "rstrip", "title", "capitalize", "swapcase"}
+
+
+def _str_display(node) -> bool:
+    return isinstance(node, (ast.Tuple, ast.List, ast.Set)) and all(
+        isinstance(e, ast.Constant) and isinstance(e.value, str) for e in node.elts)
+
+
+def _safe_str_expr(node, var) -> bool:
+    if isinstance(node, ast.Name):
+        return node.id == var
+    if isinstance(node, ast.Constant):
+        return isinstance(node.value, str)
+    if isinstance(node, ast.Call) and not node.args and not node.keywords and isinstance(node.func, ast.Attribute):
+        return node.func.attr in _SAFE_STR_METHODS and _safe_str_expr(node.func.value, var)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        return _safe_str_expr(node.left, var) and _safe_str_expr(node.right, var)
+    return False
+
+
+def _safe_value(node) -> bool:
+    """Evaluating this expression cannot raise or have side effects: a display of
+    constants, or a comprehension applying str methods to a display of strings."""
+    if node is None:
+        return False
+    if _constant_value(node):
+        return True
+    if isinstance(node, (ast.SetComp, ast.ListComp)) and len(node.generators) == 1:
+        gen = node.generators[0]
+        return (not gen.is_async and not gen.ifs and isinstance(gen.target, ast.Name)
+                and _str_display(gen.iter) and _safe_str_expr(node.elt, gen.target.id))
+    return False
+
+
+def _plain_value(node) -> bool:
+    """The value is a constant, a display or a comprehension: never a class,
+    never callable (whether or not evaluating it can raise)."""
+    return isinstance(node, (ast.Constant, ast.Tuple, ast.List, ast.Set, ast.Dict, ast.SetComp, ast.ListComp,
+                             ast.DictComp, ast.JoinedStr)) or (
+        isinstance(node, ast.UnaryOp) and isinstance(node.operand, ast.Constant))
 
 
 _INTROSPECTION = {"locals", "vars", "eval", "exec", "globals", "dir", "_getframe", "currentframe", "f_locals"}
@@ -530,6 +580,18 @@ class _Differ:
             return
         names = _bound_names(o) | _bound_names(n)
         self.add(ctx, "stmt", _header_span(o) if header_only else _span(o), names, type(o).__name__)
+        if not header_only and type(o) is type(n) and isinstance(o, (ast.Assign, ast.AnnAssign)):
+            old_targets = o.targets if isinstance(o, ast.Assign) else [o.target]
+            new_targets = n.targets if isinstance(n, ast.Assign) else [n.target]
+            # only the assigned value changed: the same names stay bound
+            self.sites[-1].same_binding = _dump_any(old_targets) == _dump_any(new_targets) \
+                and all(isinstance(t, ast.Name) for t in old_targets)
+            # both values are plain data: never a class or callable
+            self.sites[-1].plain_value = self.sites[-1].same_binding \
+                and o.value is not None and n.value is not None \
+                and _plain_value(o.value) and _plain_value(n.value)
+            # the new value cannot raise when the module is imported
+            self.sites[-1].value_safe = self.sites[-1].same_binding and _safe_value(n.value)
         if not header_only and isinstance(o, (ast.Assign, ast.AnnAssign)) and isinstance(o.value, ast.Dict) \
                 and isinstance(n, type(o)) and isinstance(n.value, ast.Dict):
             self.sites[-1].dict_keys = _changed_dict_keys(o.value, n.value, diffs)

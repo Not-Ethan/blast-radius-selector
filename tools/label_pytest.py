@@ -223,7 +223,9 @@ def main():
         # that makes every test hang does not cost the global limit per test
         limits_path = os.path.join(tmp_base, f"lab_{cid}.limits")
         with open(limits_path, "w") as handle:
-            json.dump({n: min(o.timeout, max(10.0, 5.0 * seconds_by_id.get(n, 1.0) + 5.0)) for n in chosen}, handle)
+            # generous: on a loaded machine with a 2-worker pool, test_tpcds (2.2 s
+            # recorded) can take 20+ s; a 5x+5 s limit produced false failures
+            json.dump({n: min(o.timeout, max(120.0, 20.0 * seconds_by_id.get(n, 1.0) + 60.0)) for n in chosen}, handle)
         e["BR_LABEL_TIMEOUTS"] = limits_path
         select_path = os.path.join(tmp_base, f"lab_{cid}.select")
         with open(select_path, "w") as handle:
@@ -265,6 +267,7 @@ def main():
                 failing = sorted(number_of[n] for n in failed if n in number_of)
                 spot_fail = sorted(number_of[n] for n in failed if n in set(spot))
                 detail[cid] = {"failing": failing, "ran": result["ran"], "nodes": len(nodes), "spot": len(spot),
+                               "timeouts": result.get("timeouts", []),
                                "spot_failing": spot_fail, "collect_failed": result["collect_failed"],
                                "seconds": round(time.time() - started, 1), "reasons": reasons}
                 flag = f" SPOT-FAIL {spot_fail}" if spot_fail else ""

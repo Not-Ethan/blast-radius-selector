@@ -77,6 +77,8 @@ class Plan:
     verify_cpu_estimate: float = 0.0
     restrict: dict = field(default_factory=dict)  # number -> {fixture: case ordinals} for restricted runs
     stage: dict = field(default_factory=dict)  # number -> expected optimize() fingerprints (stage check)
+    import_check: bool = False  # the changed modules must be imported to rule out import-time errors
+    import_ok: bool = False  # that import check ran
     note: str = ""
 
     def final_tests(self) -> set[int]:
@@ -93,6 +95,10 @@ class Plan:
             chosen |= self.conditional
         for module in self.import_errors:
             chosen |= set(self.import_fallback.get(module, ()))
+        if self.import_check and not self.import_ok:
+            # could not check that the changed modules still import: assume they do not
+            for module in self.check_modules:
+                chosen |= set(self.import_fallback.get(module, ()))
         return chosen
 
 
@@ -390,6 +396,9 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
     plan.include = set(certain)
     if not possible:
         plan.note = "nothing reachable" if not certain else "certain only"
+        _prepare_checks(plan, changes, found, maps, numbers, flagged_only=True)
+        if plan.import_check:
+            plan.note += " | import check"
         return plan
 
     reason_of = {}
@@ -547,6 +556,9 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
     plan.include |= blind
     if not verify:
         plan.note = f"blind {len(possible)} ({summary})"
+        _prepare_checks(plan, changes, found, maps, numbers, flagged_only=True)
+        if plan.import_check:
+            plan.note += " | import check"
         return plan
     plan.verify = sorted(verify)
     plan.verify_cpu_estimate = cpu
@@ -570,6 +582,19 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
             for n, k in sorted(restricted.items()))
 
     # Files for the overlay and modules whose import we double-check.
+    _prepare_checks(plan, changes, found, maps, numbers, flagged_only=False)
+    return plan
+
+
+def _prepare_checks(plan, changes, found, maps, numbers, flagged_only):
+    """Overlay files for a verification child, and the modules it imports first
+    (an import that fails means every importer fails). flagged_only: only the
+    modules whose change runs at import time and might raise there."""
+    flagged = {f.path for f in found.files if getattr(f, "import_check", False)}
+    if flagged_only and not flagged:
+        return
+    if flagged:
+        plan.import_check = True
     for change in changes:
         report = next((f for f in found.files if f.path == change.path), None)
         if change.old_path and change.is_rename:
@@ -580,11 +605,14 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
         if report is not None and report.new_text is not None:
             plan.files[change.path] = report.new_text.encode("utf-8")
         name = module_name(change.path)
-        if name and (change.path.startswith("sqlglot/") or change.path.startswith("tests/")):
+        if not name or not (change.path.startswith("sqlglot/") or change.path.startswith("tests/")):
+            continue
+        if flagged_only and change.path not in flagged:
+            continue
+        if name not in plan.check_modules:
             plan.check_modules.append(name)
-            imp_mask = maps.import_mask(change.old_path or change.path)
-            plan.import_fallback[name] = numbers(imp_mask)
-    return plan
+        imp_mask = maps.import_mask(change.old_path or change.path)
+        plan.import_fallback[name] = numbers(imp_mask)
 
 
 _MAPS = None  # set by main for verify_groups (opens map)
@@ -645,7 +673,7 @@ def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, i
     jobs = []
     by_key = {}
     for plan in plans:
-        if not plan.verify:
+        if not plan.verify and not plan.import_check:
             continue
         # tests.json numbers -> node ids through the plan's own mapping
         jobs.append(plan)
@@ -675,6 +703,7 @@ def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, i
             plan.failed = None
             plan.note += " | verification unavailable"
             continue
+        plan.import_ok = True
         plan.failed = {number_of[i] for i in job.result["failed"] if i in number_of}
         plan.import_errors = job.result.get("import_errors", {})
         if job.result.get("stage"):

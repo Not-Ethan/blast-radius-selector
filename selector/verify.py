@@ -353,6 +353,13 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
                 executor = importlib.import_module("sqlglot.executor")
                 stage.EXPECTED[:] = [tuple(c) for _, calls in spec["cases"] for c in calls]
                 stage.OBSERVED.clear()
+                by_input, ordinal = {}, {}
+                for k, calls in spec["cases"]:
+                    for c in calls:
+                        by_input.setdefault(c[0], set()).add((c[1], c[2]))
+                        ordinal[c[0]] = k
+                stage.ABORT.update({"by_input": by_input, "ordinal": ordinal, "cost": spec["full"],
+                                    "warm": spec["warm"], "cap": spec["cap"]})
                 stage.install(executor)
                 try:
                     _, group_durations = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
