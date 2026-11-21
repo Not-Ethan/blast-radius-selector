@@ -190,7 +190,7 @@ Expected on practice: CPU slightly down; simulated down only where module-level 
 dialect settings or class-level values are edited. Main value: the import-check
 soundness fix for unseen kinds of change in the final.
 
-## M6 — function-scoped computed-name reads, typed records for the slowest tests (recommended next; includes M5)
+## M6 — function-scoped computed-name reads, typed records for the slowest tests (submitted: 157.2)
 
 Commit: **d1cc829** (branch br-opt). Builds on M5 (so it carries M5's import-check
 soundness fix). Docker re-run on exactly this tree (valid, 0 misses).
@@ -226,3 +226,59 @@ CPU slightly down. Risk: the function-scope rule relies on line coverage separat
 function code from module code (the tracer records them separately) and on locating
 the getattr/vars/__dict__ call on that line (a line where none is found keeps the old
 rule).
+
+## M7 — fallbacks for unreadable patches, fast planner packing (superseded by M8)
+
+Commit: **32e3c98** (branch br-opt). Builds on M6. Docker re-run on exactly this tree
+(`git archive` of the commit): valid, 0 misses (emulated amd64; 3 verifications killed
+by emulation slowness, as for every candidate).
+
+What changed:
+* Robustness: text that parses to no diff section, or a patch with two sections for one
+  file, now runs everything (before: "nothing reachable", 0 tests); a section with no
+  hunks and no mode change counts as an unseen (binary) change; analysis stops reasoning
+  after half the time budget. Checked on 17 malformed/edge patches natively and in Docker.
+* Planner option estimates pack big selections without the quadratic move/swap pass
+  (memoised). Selections identical on every set; planning CPU on val1 28.2 s -> 1.0 s,
+  val3 15.9 -> 0.3 s (only commits with ~1600-test blind plans were affected; sample
+  0.08 s either way).
+* val2 +52 and val6 +3 commits labelled with pytest; val4's 36 and 25 of val2's 68 older
+  in-process labels re-checked with pytest: identical.
+
+## M8 — per-case runs for the other 23 fixture-loop tests of test_optimizer (recommended next; includes M7)
+
+Commit: **8b8c280** (branch br-opt). Builds on M7. Docker re-run on exactly this tree
+(`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run (2
+verifications killed by emulation slowness, as before). Map 668 KB -> 893 KB.
+
+What changed: per-case coverage and CPU for test_optimize, test_qualify_columns,
+test_annotate_funcs, test_simplify, test_merge_subqueries and the 18 other
+`check_file` loops of tests/test_optimizer.py (4,064 cases). Each case was traced in a
+child of a zygote that had imported the tests, and its record is unioned with the
+test's cold zero-case record (imports + the code outside the loops), so it covers at
+least what a cold run of that case covers. Verification of such a test runs only the
+cases that reach the change, under the same rule as M1 (every reason that reaches the
+test must reach a kept run, else the whole test runs).
+
+| set | M6/M7 sim | M8 sim | misses | M8 extra verify CPU (planner estimate, local) |
+| --- | ---: | ---: | ---: | ---: |
+| kit sample (30) | 106.3 | **104.8** | 0 | +1.3 |
+| val1 (199) | 1120.8 | **1105.5** | 0 | +17.3 |
+| val2 (120) | 609.3 | **581.4** | 0 | +19.4 |
+| val4 (36) | 87.0 | **79.3** | 0 | +1.2 |
+| val3 (40 class-level) | 292.0 | **276.9** | 0 | +8.5 |
+| val5 (64 new kinds) | 209.7 | **203.5** | 0 | +2.5 |
+| val6 (60 official-style) | 197.6 | **193.2** | 0 | +0.1 |
+
+Measured local CPU is not comparable this hour (other jobs on the machine pushed the
+load average to ~40; commits with unchanged plans took ~2x the CPU of the earlier run),
+so the CPU column is the planner's own estimate. At the observed scorer/local CPU
+ratio (~0.5) every set gains net. Expected on practice: ~1.5 s simulated less on a
+sample-like batch for ~0.7 s more CPU; more where optimizer code is edited.
+Risk (not verified): the per-case risk of M1 now applies to 23 more tests: a case is
+skipped when its own run (alone) does not reach the change, which assumes no earlier case
+of the same test leaves state behind that makes it reach the change in a full run. Each
+case parses its SQL afresh; whether shared objects such as a test's schema are mutated
+across cases has not been checked. Consistency check done: for all 28 per-case tests,
+every line the full run covers (at the pinned commit) is covered by the zero-case run or
+by some case run alone (0 lines only in the full run).
