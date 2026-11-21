@@ -48,6 +48,22 @@ ones against the patched tree and keep only the ones that fail.**
      without a record for that line is kept). The same holds for lines that read it
      only as `self.dialect.NAME` (dialect settings read by the shared parser/generator),
      with the recorded class of the dialect object.
+     **Tokenizer settings** (`selector/tokcore.py`): `Tokenizer._init_core` copies
+     settings into a `TokenizerCore` (`numeric_escapes=self.NUMERIC_ESCAPES`), whose
+     scanning methods read them as fields. That `_init_core` line runs for every
+     tokenizer, so instead it counts only for tests whose record
+     (`tools/trace_tokcore.py`: each test alone from a fresh interpreter) shows a core
+     line that observes the field (a read of `self.field`, or the uses of a local copied
+     from it) run for a core built by a tokenizer of the changed class or a subclass
+     (cores of unknown origin match every class; tests without a record are kept). Off
+     when the patch touches the core, changes `_init_core`, or mentions
+     `TokenizerCore`/`_init_core` elsewhere.
+     Lines that use a changed class attribute **only for its truth value** (`if X`,
+     `not X`, `bool(X)`, and/or in such a position, following a local copied from it)
+     are dropped when old and new values have the same truth (non-empty displays,
+     constants of equal truth); for a dict display whose keys stay the same, lines that
+     only test `key in X` are dropped too. `NAME: annotation` statements without a value
+     (module level or plain classes) are not reads.
      For a module-level assignment that keeps the same names bound (only the value
      changed), `from module import NAME` lines are not reads in themselves: the
      importing module's later uses of `NAME` are, and modules that re-export the name
@@ -190,11 +206,22 @@ tests/test_executor.py::TestExecutor::test_optimized_tpch,tests/test_optimizer.p
 tests/test_optimizer.py::TestOptimizer::test_tpch
 python tools/trace_cases.py <sqlglot checkout> maps/cases.json out/cases --tests $T
 python tools/trace_cases.py <sqlglot checkout> maps/cases.json out/cases --tests $T --measure
+# the other 23 check_file loops of tests/test_optimizer.py: cold zero-case records, then
+# each case from a warm zygote (augment_maps unions the cold record into every warm case)
+W=<comma-separated ids of the 23 other test_optimizer.py tests in maps/cases.json>
+python tools/trace_cases.py <sqlglot checkout> maps/cases.json out/cases --tests $W --outside-only
+python tools/trace_cases.py <sqlglot checkout> maps/cases.json out/cases --tests $W --outside-only --measure
+python tools/trace_cases.py <sqlglot checkout> maps/cases.json out/cases --tests $W --warm
+python tools/trace_cases.py <sqlglot checkout> maps/cases.json out/cases --tests $W --warm --measure
 python tools/augment_maps.py out/coverage_plain.json.gz out/cases out/coverage_cases.json.gz <scale>
-# receiver classes of self.NAME / cls.NAME reads (the two 20-30 s tests are skipped: no record = kept)
-python tools/trace_typed.py <sqlglot checkout> tests.json out/typed.json \
-    --skip tests/test_parser.py::TestParser::test_max_nodes,tests/test_executor.py::TestExecutor::test_execute_tpcds
-python tools/add_typed.py out/coverage_cases.json.gz out/typed.json maps/coverage.json.gz
+# receiver classes of self.NAME / cls.NAME / self.dialect.NAME reads
+python tools/trace_typed.py <sqlglot checkout> tests.json out/typed.json
+python tools/add_typed.py out/coverage_cases.json.gz out/typed.json out/coverage_typed.json.gz
+# TPC-DS optimizer-stage records (tools/trace_stage.py), then
+python tools/augment_stage.py out/coverage_typed.json.gz out/stage out/coverage_stage.json.gz <scale>
+# tokenizer core: which core lines ran for which tokenizer class
+python tools/trace_tokcore.py <sqlglot checkout> tests.json out/tokcore.json
+python tools/add_tokcore.py out/coverage_stage.json.gz out/tokcore.json maps/coverage.json.gz
 ```
 
 `<scale>` is the measuring machine's CPU time divided by the recorded seconds for

@@ -44,6 +44,10 @@ class Maps:
         self.typed_mro = {k: set(v) for k, v in data.get("typed_mro", {}).items()}
         # ... and the class of the dialect object on lines reading self.dialect.NAME
         self.typed_dialect = data.get("typed_dialect", {})
+        # Tokenizer core (tools/trace_tokcore.py): line of sqlglot/tokenizer_core.py ->
+        # {class of the Tokenizer that created the core: set index}; "traced" = tests
+        # with a record (selector/tokcore.py).
+        self.tokcore = data.get("tokcore", {})
         # Tests that loop over fixture cases (tools/build_cases.py): id -> [(fixture, kind)]
         self.case_tests = {}
         self.case_counts = {}

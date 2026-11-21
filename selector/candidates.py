@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from .analyze import analyze_python
 from .maps import Maps
 from .patch import FileChange, apply_hunks
+from . import tokcore
 
 PYTEST_CONFIG = {"pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml", "conftest.py"}
 # Class-level dicts whose string keys are SQL text (function names, keywords...).
@@ -93,6 +94,10 @@ class CandidateFinder:
 
     def analyze(self, changes: list[FileChange]) -> CommitCandidates:
         result = CommitCandidates()
+        try:
+            self._tokcore_on = self._tokcore_enabled(changes)
+        except Exception:  # noqa: BLE001 - only a narrowing: off
+            self._tokcore_on = False
         for change in changes:
             result.files.append(self._file(change, result))
         return result
@@ -370,7 +375,9 @@ class CandidateFinder:
             if names and not dunder:
                 owner = f"{module}:{site.class_qual}"
                 cand &= self._name_refs(names, rel, site.lines, ("object",),
-                                        owner=owner if owner in maps.classes else None)
+                                        owner=owner if owner in maps.classes else None,
+                                        truth_same=getattr(site, "truth_same", False),
+                                        same_keys=getattr(site, "same_keys", False))
             if cand and site.dict_keys:
                 keyed = self._dict_key_usage(site.dict_keys, names, cand)
                 if keyed is not None:
@@ -780,6 +787,143 @@ class CandidateFinder:
         cache[key] = result
         return result
 
+    # -- tokenizer settings (selector/tokcore.py) ------------------------------
+    def _tokcore_enabled(self, changes) -> bool:
+        """The owner records of the tokenizer core hold for this commit: the core
+        and Tokenizer._init_core are unchanged and nothing else builds a core."""
+        if not self.maps.tokcore.get("lines"):
+            return False
+        for change in changes:
+            paths = {change.path, change.old_path}
+            if tokcore.CORE_FILE in paths:
+                return False
+            if tokcore.TOKENS_FILE in paths:
+                if change.path != change.old_path or change.is_deleted or change.binary:
+                    return False
+                old = self._source(tokcore.TOKENS_FILE).decode("utf-8")
+                new = apply_hunks(old, change)
+                before = tokcore.init_core_dump(old)
+                if before is None or before != tokcore.init_core_dump(new):
+                    return False
+                continue
+            if change.binary:
+                continue
+            old_raw = self._read(change.old_path) if change.old_path else None
+            new = apply_hunks(old_raw.decode("utf-8") if old_raw is not None else None, change) \
+                if not change.is_deleted else ""
+            if "TokenizerCore" in new or "_init_core" in new:
+                return False
+        return True
+
+    def _tokcore_plumbing(self):
+        cache = self.__dict__.get("_plumbing_cache")
+        if cache is None:
+            cache = tokcore.plumbing(self._source(tokcore.TOKENS_FILE).decode("utf-8"))
+            self._plumbing_cache = cache
+        return cache
+
+    def _tokcore_observers(self):
+        cache = self.__dict__.get("_observers_cache")
+        if cache is None:
+            cache = tokcore.observers(self._source(tokcore.CORE_FILE).decode("utf-8"))
+            self._observers_cache = cache
+        return cache
+
+    @staticmethod
+    def _only_plumbed(line, names, plumbs) -> bool:
+        """Every mention of the names on this _init_core line is one `field=self.NAME`."""
+        settings = [setting for setting, _, _ in plumbs]
+        mentioned = False
+        for name in names:
+            total = len(re.findall(r"\b" + re.escape(name) + r"\b", line))
+            if total and (total != 1 or settings.count(name) != 1):
+                return False
+            mentioned = mentioned or total > 0
+        return mentioned
+
+    def _blind_lines(self, py, raw, hits, names, same_keys) -> set:
+        """Hit lines whose every mention of the names is used only for its truth
+        value (or, with same_keys, also as the right operand of in / not in)."""
+        tree = self._tree(py, raw)
+        if tree is None:
+            return set()
+        cache = self.__dict__.setdefault("_parents_cache", {})
+        parents = cache.get(py)
+        if parents is None:
+            parents = cache[py] = tokcore.parents_of(tree)
+        allowed = {"truth", "member"} if same_keys else {"truth"}
+        text = raw.decode("utf-8", "replace").split("\n")
+        out = set()
+        for i in hits:
+            if not 0 < i <= len(text):
+                continue
+            kinds = tokcore.mention_kinds(tree, parents, i, set(names), text[i - 1])
+            if kinds and kinds <= allowed:
+                out.add(i)
+        return out
+
+    def _tokcore_mask(self, py, line, owner, names, plumbs, truth_same, same_keys=False) -> int:
+        """Tests that can see a changed tokenizer setting through the core: those
+        whose record shows a core line observing the field run for a tokenizer of
+        class `owner` or a subclass (or a core of unknown origin), plus every test
+        that ran this _init_core line without a record."""
+        maps = self.maps
+        tc = maps.tokcore
+        if str(line) in maps.typed.get(py, {}):
+            ran = self._typed_mask(py, line, owner)
+        else:
+            ran = maps.func_mask(py, [line]) | maps.mod_mask(py, [line])
+        out = ran & ~maps.mask(tc["traced"])
+        observers = self._tokcore_observers()
+        for setting, field_name, through_bool in plumbs:
+            if setting not in names:
+                continue
+            if through_bool and truth_same:
+                continue  # bool(SETTING) is the same before and after
+            for oline, kind in observers.get(field_name, ()):
+                if (kind == "truth" and (truth_same or same_keys)) or (kind == "member" and same_keys):
+                    continue
+                for okey, k in tc["lines"].get(str(oline), {}).items():
+                    ancestors = maps.typed_mro.get(okey)
+                    if okey == "?" or ancestors is None or owner in ancestors:
+                        out |= maps.mask(k)
+        return out
+
+    def _bare_annotations(self, py, raw):
+        """{(line, name)} of one-line `name: annotation` statements without a value,
+        at module level or directly in the body of a plain class (no decorators, no
+        class keywords, no bases other than object/Protocol). Such a statement only
+        records an annotation. (In a dataclass-like class the field machinery would
+        look up an inherited `name` as the default: those classes are left out.)"""
+        import ast as _ast
+
+        cache = self.__dict__.setdefault("_bare_cache", {})
+        if py not in cache:
+            found = set()
+            tree = self._tree(py, raw)
+
+            def plain_class(node):
+                if node.decorator_list or node.keywords:
+                    return False
+                for base in node.bases:
+                    name = base.attr if isinstance(base, _ast.Attribute) else getattr(base, "id", None)
+                    if name not in ("object", "Protocol"):
+                        return False
+                return True
+
+            def visit(body):
+                for node in body:
+                    if isinstance(node, _ast.AnnAssign) and node.value is None and isinstance(node.target, _ast.Name) \
+                            and node.lineno == node.end_lineno:
+                        found.add((node.lineno, node.target.id))
+                    elif isinstance(node, _ast.ClassDef) and plain_class(node):
+                        visit(node.body)
+
+            if tree is not None:
+                visit(tree.body)
+            cache[py] = found
+        return cache[py]
+
     @staticmethod
     def _only_dialect_reads(line, names) -> bool:
         """The line mentions the names, and every mention is `self.dialect.NAME`."""
@@ -792,7 +936,7 @@ class CandidateFinder:
         return mentioned
 
     def _name_refs(self, names, site_rel, site_lines, kinds, module=None, owner=None, same_binding=False,
-                   plain_value=False) -> int:
+                   plain_value=False, truth_same=False, same_keys=False) -> int:
         maps = self.maps
         needles = [n.encode() for n in names]
         module_needles = None
@@ -817,6 +961,7 @@ class CandidateFinder:
                     mask |= self._hits_mask(py, raw, hits)
                 continue
             hits = set()
+            bare = self._bare_annotations(py, raw)
             for i, line in enumerate(raw.decode("utf-8", "replace").split("\n"), start=1):
                 found = pattern.findall(line)
                 if not found:
@@ -826,12 +971,19 @@ class CandidateFinder:
                     continue
                 if definition.match(line) and len(found) == 1:
                     continue  # `NAME = ...` (re)defines the name; it does not read it
+                if len(found) == 1 and (i, found[0]) in bare:
+                    continue  # `NAME: <annotation>` without a value reads nothing
                 hits.add(i)
                 if stripped.startswith("."):
                     # A chained attribute is reported on the line where the chain starts.
                     hits.update((i - 1, i - 2, i - 3))
             if py == site_rel:
                 hits -= set(site_lines)
+            if owner is not None and (truth_same or same_keys) and hits:
+                # Only the truth value (and, for a dict whose keys stay the same, only
+                # `key in VALUE`) of a class attribute is used on a line: such a line
+                # cannot tell the old value from the new one (selector/tokcore.py rules).
+                hits -= self._blind_lines(py, raw, hits, names, same_keys)
             if owner is not None and (maps.typed.get(py) or getattr(maps, "typed_dialect", {}).get(py)):
                 # A class attribute changed in class `owner`: a line that only reads
                 # it as self.NAME / cls.NAME (or as self.dialect.NAME) sees the change
@@ -841,10 +993,14 @@ class CandidateFinder:
                 dialect_lines = getattr(maps, "typed_dialect", {}).get(py, {})
                 text = raw.decode("utf-8", "replace").split("\n")
                 narrowed = set()
+                plumbs = self._tokcore_plumbing() if (py == tokcore.TOKENS_FILE and self._tokcore_on) else {}
                 for i in hits:
                     if not 0 < i <= len(text):
                         continue
-                    if str(i) in typed_lines and self._only_attribute_reads(text[i - 1], names):
+                    if i in plumbs and self._only_plumbed(text[i - 1], names, plumbs[i]):
+                        mask |= self._tokcore_mask(py, i, owner, names, plumbs[i], truth_same, same_keys)
+                        narrowed.add(i)
+                    elif str(i) in typed_lines and self._only_attribute_reads(text[i - 1], names):
                         mask |= self._typed_mask(py, i, owner)
                         narrowed.add(i)
                     elif str(i) in dialect_lines and self._only_dialect_reads(text[i - 1], names):

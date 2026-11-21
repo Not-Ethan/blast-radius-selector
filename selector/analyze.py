@@ -60,6 +60,12 @@ class Site:
     # ... and evaluating the new value at import cannot raise (else the module's
     # import is checked at decision time: if it fails, every importer fails).
     value_safe: bool = False
+    # ... and old and new values have the same truth value whatever runs: both
+    # non-empty container displays without unpacking, or constants of equal truth.
+    truth_same: bool = False
+    # ... and both values are dict displays (no ** unpacking) with the same keys:
+    # only values of entries changed, so `key in VALUE` cannot tell old from new.
+    same_keys: bool = False
     # For a function-scope change confined to side-effect-free expressions:
     # [(old expression source, (lineno, col, end_lineno, end_col) of the new
     # expression in the new file, used as a truth value?)]. The verifier can
@@ -176,6 +182,38 @@ def _plain_value(node) -> bool:
     return isinstance(node, (ast.Constant, ast.Tuple, ast.List, ast.Set, ast.Dict, ast.SetComp, ast.ListComp,
                              ast.DictComp, ast.JoinedStr)) or (
         isinstance(node, ast.UnaryOp) and isinstance(node.operand, ast.Constant))
+
+
+def _same_truth(old, new) -> bool:
+    """Both values are true (non-empty container displays without * or **
+    unpacking), or constants with the same truth value."""
+    def nonempty_display(node):
+        if isinstance(node, ast.Dict):
+            return bool(node.keys) and all(k is not None for k in node.keys)
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            return bool(node.elts) and not any(isinstance(e, ast.Starred) for e in node.elts)
+        return False
+
+    if nonempty_display(old) and nonempty_display(new):
+        return True
+    if isinstance(old, ast.Constant) and isinstance(new, ast.Constant):
+        return bool(old.value) == bool(new.value)
+    return False
+
+
+def _same_dict_keys(old: ast.Dict, new: ast.Dict) -> bool:
+    """Two dict displays with the same constant keys (no ** unpacking): the
+    resulting dicts have the same key set."""
+    def keys(node):
+        out = []
+        for k in node.keys:
+            if not isinstance(k, ast.Constant):
+                return None
+            out.append(repr(k.value))
+        return sorted(out)
+
+    a, b = keys(old), keys(new)
+    return a is not None and a == b
 
 
 _INTROSPECTION = {"locals", "vars", "eval", "exec", "globals", "dir", "_getframe", "currentframe", "f_locals"}
@@ -592,6 +630,10 @@ class _Differ:
                 and _plain_value(o.value) and _plain_value(n.value)
             # the new value cannot raise when the module is imported
             self.sites[-1].value_safe = self.sites[-1].same_binding and _safe_value(n.value)
+            self.sites[-1].truth_same = self.sites[-1].same_binding and o.value is not None \
+                and n.value is not None and _same_truth(o.value, n.value)
+            self.sites[-1].same_keys = self.sites[-1].same_binding and isinstance(o.value, ast.Dict) \
+                and isinstance(n.value, ast.Dict) and _same_dict_keys(o.value, n.value)
         if not header_only and isinstance(o, (ast.Assign, ast.AnnAssign)) and isinstance(o.value, ast.Dict) \
                 and isinstance(n, type(o)) and isinstance(n.value, ast.Dict):
             self.sites[-1].dict_keys = _changed_dict_keys(o.value, n.value, diffs)
