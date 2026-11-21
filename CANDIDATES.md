@@ -329,7 +329,7 @@ the core up to the first read of the changed field does not depend on that field
 (true by construction: identical inputs and code until the field is read) and that
 runs are deterministic. A core built outside `_init_core` matches every class.
 
-## M10 — per-case tokenizer-core records, local-flow guards (recommended next; includes M7-M9)
+## M10 — per-case tokenizer-core records, local-flow guards (superseded by M11: has the SQL-text hole below)
 
 Commit: **9572878** (branch br-opt). Builds on M9. Docker re-run on exactly this tree
 (`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run (2
@@ -360,3 +360,35 @@ What changed on top of M9:
 
 Planner CPU estimates identical to M9 except val7 (+11.2 s local for -23.3 s simulated).
 Expected on practice: same as M9 unless a tokenizer-setting edit reaches a per-case test.
+
+## M11 — soundness fix: no text-based narrowing of SQL-keyed dicts (recommended next; includes M7-M10)
+
+Commit: **34467a3** (branch br-opt). Builds on M10. Docker re-run on exactly this tree
+(`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run.
+
+Found a miss class present in every candidate so far (M1-M10): an edit of an entry of a
+dict keyed by SQL text (`KEYWORDS`, `FUNCTIONS`, `*_PARSERS`, `*_MAPPING`) was narrowed to
+tests whose source or data files contain the key. SQL built at runtime defeats that:
+renaming the tokens.py `KEYWORDS` key `"INT"` fails
+`tests/dialects/test_mysql.py::TestMySQL::test_types` (it builds `f"CAST(x AS
+{signed_type.value})"`; confirmed by running it alone on the patched tree), and renaming
+`"TEXT"` fails 4 tests whose text lacks the word. (New probe set `tools/gen_sqlkeys.py`,
+19 key renames, pytest labels; 3 labelled so far, 2 of them would have been misses.)
+M11 removes the rule: such an edit keeps every test that reads the dict through the
+usual class-usage / name / typed narrowing. The class-keyed rule
+(`TRANSFORMS = {exp.Foo: ...}` -> tests that built an `exp.Foo`) stays.
+
+| set | M10 sim | M11 sim | misses |
+| --- | ---: | ---: | ---: |
+| kit sample (30) | 96.8 | 96.8 | 0 |
+| val1 (199) | 1105.5 | 1203.3 | 0 |
+| val2 (120) | 552.8 | 564.7 | 0 |
+| val4 (36) | 79.3 | 79.3 | 0 |
+| val3 (40 class-level) | 270.6 | 270.6 | 0 |
+| val5 (64 new kinds) | 203.5 | 218.9 | 0 |
+| val6 (60 official-style) | 193.2 | 193.2 | 0 |
+
+Expected on practice: unchanged unless the batch edits a SQL-keyed dict entry (none in the
+kit sample or val6); then a few to ~25 s more per such commit instead of a possible 300 s
+miss. A precise replacement (runtime record of the keys each test looks up) is the next
+step.
