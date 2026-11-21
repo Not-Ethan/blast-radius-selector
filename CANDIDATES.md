@@ -122,3 +122,26 @@ all coverage-based selection: state shared across cases inside one process.
 
 CPU scale: also tried 0.7 with M3 on val2: -7.7 s simulated, +14.1 s local CPU, i.e.
 break-even at a 0.5 scorer/local CPU ratio, so the scale stays at 1.0.
+
+## M4 — re-run only the TPC-DS cases whose optimizer output changed (recommended next)
+
+Commit: **0fdd4d8** (branch br-opt). Builds on M3. Docker re-run on exactly this tree
+(valid, 0 misses, 131 s wall emulated).
+
+What changed: a stage check matches `optimize()` calls to cases by the fingerprint of
+their input; the cases whose output differs (or whose call is missing) are run in full
+when that costs less than including the test (e.g. val2 gzdj: 4 of 32 cases differ ->
+re-run 4 -> TPC-DS cleared: 25.45 s -> 10.0 s).
+
+| set | M3 sim | M4 sim | misses | M4 local CPU |
+| --- | ---: | ---: | ---: | ---: |
+| kit sample (30) | 106.3 | 106.3 | 0 | 27.3 |
+| val1 (141) | 690.4 | 690.4 | 0 | 122.4 |
+| val2 (68) | 242.1 | **226.7** | 0 | 90.3 |
+| val4 (36) | 87.0 | 87.0 | 0 | 92.0 |
+| val5 (now all 64 labelled) | n/a | 209.7 (oracle 128.9) | 0 | 13.8 |
+| TPC-DS check set (28) | 455.7 | 440.3 | 0 | |
+
+Versus M1 (practice 185.3): on val2, the closest proxy for the official generator,
+simulated 277.8 -> 226.7 (-51 s / 68 commits); sample unchanged; local CPU on val2
+62 -> 90 s (about +14 s at the observed ~0.5 scorer/local ratio).
