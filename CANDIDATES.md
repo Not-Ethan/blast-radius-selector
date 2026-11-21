@@ -7,12 +7,13 @@
 > scorer: on official-style sets they barely change the simulated cost (see "CPU
 > diagnosis" at the end).
 >
-> **Recommended next: M21 (55d8c1b)** — M19 plus M20 (lambda bodies inside
-> comprehensions; val9 -7.2 s) and two soundness hardenings of the state comparison
-> (same import-time imports, same dict key order). Every validation set 0 misses;
-> Docker-checked on its exact tree (from-scratch build 312 s on a loaded machine;
-> valid, 0 misses, 121.616 s emulated). It does not cut CPU (about M19's); the CPU fix
-> (a gate that estimates the real saving) is not built yet. Known robustness issue: in the local emulated
+> **Recommended next: M22 (52f588a)** — M21 plus a gate that runs the state
+> comparison only when planning with its likely result saves more than its scorer CPU
+> (val9/val6: 0 comparisons instead of 11/8, same simulated seconds). Every validation
+> set 0 misses; Docker-checked on its exact tree (`docker build --no-cache` 195 s;
+> valid, 0 misses, 96.839 s emulated, done at 93 s; M21 needed 126 s and got 121.616
+> because its comparisons ate the emulated time budget). Fallback option: M21
+> (55d8c1b), also Docker-checked. Known robustness issue: in the local emulated
 > container (not natively, and evidently not on the scorer) the state comparisons fall
 > back because tuples/dicts built from sets of classes (address-hashed) are ordered
 > differently in the build-time pinned run and the run-time patched run, and the
@@ -812,3 +813,39 @@ image, labellers paused; CPU = user+sys of the whole selector run (native M1):
 * So M13 -> M17's -22.3 s on practice need not come from the comparisons: M14 alone
   took val9 from 250.3 to 242.5. Scorer/local CPU ratio implied by M13 -> M17 (+9.4 s
   scorer, about +5 s local per 40 official-style commits): about 1.9 for this work.
+
+## M22 — the state comparison runs only when planning with its likely result pays (recommended next; includes M7-M21)
+
+Commit: **52f588a**. Docker re-run on exactly this tree (`git archive`, `docker build
+--no-cache` 195 s): valid, 0 misses, simulated 96.839 s, done at 93 s of the emulated
+run (M19/M21: 121.616 s, done at 126 s).
+
+* Gate (`policy.state_check_worthwhile`): computes, without fingerprints, the masks a
+  confirming comparison would leave (key records of the edited keys plus enumerators
+  and untraced tests; the module record alternative; the runtime readers of assigned
+  class attributes), plans the commit with and without them, and runs the comparison
+  only if the planner's expected cost drops by more than 0.65 s local x 1.9 = 1.23 s.
+  Skipping keeps the wider masks (sound); the comparison itself still decides.
+* `CPU_SCALE` for verification is unchanged (1.0): the five practice points cannot
+  separate verification CPU from comparison CPU (verification did not change between
+  M13 and M17 locally, so the 1.9 is a property of the comparison's cost), whole-run
+  ratios on local proxies range 1.4-1.9 for an unknown practice mix, and local scoring
+  cannot measure the trade-off. Not changed without evidence.
+* The container-order fix (padded build-time runs) is **not** included: inside the
+  image the five parallel build runs failed ("pinned fingerprint failed"), so it is
+  not validated.
+
+| set | M21 sim | M22 sim | comparisons M21 -> M22 | misses |
+| --- | ---: | ---: | --- | ---: |
+| kit sample | 96.8 | 96.8 | 3 -> 1 | 0 |
+| val9 / val6 (official-style) | 235.1 / 193.2 | 235.1 / 193.2 | 11 -> 0 / 8 -> 0 | 0 |
+| val5 / val10 | 176.4 / 362.6 | 176.4 / 362.6 | 6 -> 6 / 19 -> 19 | 0 |
+| val1 | 1060.3 | 1073.2 | 22 -> 8 | 0 |
+| val2 / val3 / val8 | 532.8 / 287.5 / 166.3 | 532.8 / 287.5 / 166.3 | 22 -> 10 / 23 -> 3 / 22 -> 7 | 0 |
+| val16 | 546.3 | 546.7 | 46 -> 9 | 0 |
+| val4, val7, val11-val15 | | unchanged | | 0 |
+
+A labelled kinds2 commit (bipi, trailing whitespace) showed test_execute_tpcds failing,
+which no selection includes. Rerun with real pytest on the patched tree: it passes
+(57 subtests). The label is false: I had paused the labeller with SIGSTOP while it ran
+that test. Not a miss; bipi will be relabelled, and the labeller is no longer paused.
