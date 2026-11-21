@@ -1,4 +1,12 @@
+
 # Candidate submissions (branch br-opt)
+
+> **Final entry if the cutoff were now: M14 (19278c8)** — the newest candidate with all
+> three soundness fixes (M11 SQL-keyed dicts, M12 module aliases, M13 class-name reads).
+> **Slot request (1:59 PM): please submit M11 alone (34467a3)** — it splits the +24.5 s
+> M8->M13 practice increase between the SQL-keyed-dict fix (M11) and the other two, which
+> decides which precise replacement to build first. Local proxies cannot split it: the kit
+> sample, val6 and val9 cost the same under M10 and M14 (96.8 / 193.2 / 242.5).
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
