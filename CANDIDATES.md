@@ -283,7 +283,7 @@ across cases has not been checked. Consistency check done: for all 28 per-case t
 every line the full run covers (at the pinned commit) is covered by the zero-case run or
 by some case run alone (0 lines only in the full run).
 
-## M9 — tokenizer settings narrowed through the tokenizer core (recommended next; includes M7, M8)
+## M9 — tokenizer settings narrowed through the tokenizer core (superseded by M10; includes M7, M8)
 
 Commit: **f3572a4** (branch br-opt). Builds on M8. Docker re-run on exactly this tree
 (`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run (1
@@ -319,6 +319,7 @@ What changed:
 | val5 (64 new kinds) | 203.5 | 203.5 | 0 | 9.4 -> 9.4 |
 | val6 (60 official-style) | 193.2 | 193.2 | 0 | 49.8 -> 49.8 |
 | val7 = 44 generated tokenizer-setting edits (pytest labels, 15 with failures) | 562.8 | **70.8** (oracle 32.8) | 0 | |
+| val8 = 24 hand-picked tokenizer-setting edits: set elements, dict keys removed/added, strings, token types (pytest labels, 13 with failures) | 402.6 | **214.9** | 0 | |
 
 Expected on practice: one sample commit in 30 was such an edit (4d63: 9.5 s in M7,
 7.9 s in M8, 0 s in M9: its 7 remaining candidates are verified in 1.1 s local CPU);
@@ -327,3 +328,35 @@ Risk: the record is per test at the pinned commit; it assumes a test's path thro
 the core up to the first read of the changed field does not depend on that field
 (true by construction: identical inputs and code until the field is read) and that
 runs are deterministic. A core built outside `_init_core` matches every class.
+
+## M10 — per-case tokenizer-core records, local-flow guards (recommended next; includes M7-M9)
+
+Commit: **9572878** (branch br-opt). Builds on M9. Docker re-run on exactly this tree
+(`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run (2
+verifications killed at the emulated deadline under machine load).
+
+What changed on top of M9:
+* The tokenizer-core record also exists per fixture case for the 28 per-case tests
+  (4,328 cases traced alone from a warm zygote, each unioned with its test's cold
+  zero-case record, as for line coverage). A tokenizer-setting edit now restricts those
+  tests' verification to the cases that observe the setting. Check: for all 28 tests the
+  union of the case records equals the whole test's record (0 missing line/owner pairs).
+* Local flow (the truth/member rule and the core's observers) never follows a name
+  declared `global`/`nonlocal` and counts `*args`/`**kwargs` as bindings (no effect on
+  any local set; closes a hole for code that publishes such a local).
+* Analysis indexes attribute/name mentions once per file (less analysis CPU).
+
+| set | M9 sim | M10 sim (exact tree) | misses |
+| --- | ---: | ---: | ---: |
+| kit sample (30) | 96.8 | 96.8 | 0 |
+| val1 (199) | 1105.5 | 1105.5 | 0 |
+| val2 (120) | 552.8 | 552.8 | 0 |
+| val4 (36) | 79.3 | 79.3 | 0 |
+| val3 (40 class-level) | 270.6 | 270.6 | 0 |
+| val5 (64 new kinds) | 203.5 | 203.5 | 0 |
+| val6 (60 official-style) | 193.2 | 193.2 | 0 |
+| val7 (44 tokenizer settings) | 70.8 | **47.5** | 0 |
+| val8 (24 tokenizer settings, varied) | 214.9 | **202.5** | 0 |
+
+Planner CPU estimates identical to M9 except val7 (+11.2 s local for -23.3 s simulated).
+Expected on practice: same as M9 unless a tokenizer-setting edit reaches a per-case test.
