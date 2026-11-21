@@ -470,7 +470,7 @@ val1/val2/val4, re-checked where noted); probes = the adversarial sets of this r
 Determinism check behind rows 1, 5, 9, 10, 23: 161 tests (every 10th, under 3 s) traced
 under PYTHONHASHSEED=1 and =2: identical line coverage for all 161.
 
-## M13 — soundness fix: class attributes read through the class name (recommended next; includes M7-M12)
+## M13 — soundness fix: class attributes read through the class name (superseded by M14)
 
 Commit: **e58bf21** (branch br-opt). Builds on M12. Docker re-run on exactly this tree
 (`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run.
@@ -509,3 +509,29 @@ Decision left to the coordinator: row 25 is the one rule whose evidence is stati
 12%); it saves 33 s on the kit sample (2 of 30 commits). `BR_PROBES=0` in the Dockerfile's
 environment (or flipping the default in `selector/policy.py`) turns it off with no other
 change.
+
+## M14 — class-name reads count only for the edited attribute (recommended next; includes M7-M13)
+
+Commit: **19278c8** (branch br-opt). Builds on M13 (keeps all three soundness fixes).
+Docker re-run on exactly this tree (`git archive` of the commit): valid, 0 misses, done
+at 124 s of the emulated run.
+
+M13 counted every read through the edited class's name; a read of another attribute
+(`MySQL.TIME_FORMAT` for an edit of `MySQL.TIME_MAPPING`) cannot read the edited one
+(nested chains are recorded per class: `MySQL.Tokenizer.KEYWORDS` is a read of
+`Tokenizer` through MySQL and of `KEYWORDS` through `MySQL.Tokenizer`). The table now
+keeps the attribute. Probe set val14: still 0 missed.
+
+| set | M13 sim | M14 sim | misses |
+| --- | ---: | ---: | ---: |
+| kit sample (30) | 96.8 | 96.8 | 0 |
+| val1 (199) | 1225.4 | 1203.3 | 0 |
+| val2 (120) | 608.0 | 583.5 | 0 |
+| val4 (36) | 79.3 | 79.3 | 0 |
+| val3 (40 class-level) | 324.2 | 302.0 | 0 |
+| val5 (64 new kinds) | 238.6 | 238.6 | 0 |
+| val6 (60 official-style) | 193.2 | 193.2 | 0 |
+| val7 / val8 (tokenizer settings) | 51.0 / 266.0 | 47.5 / 266.0 | 0 |
+| val9 (60 official-style) | 250.3 | 242.5 | 0 |
+| val10-13 probes | 0 missed | 0 missed | 0 |
+| val14 cross-class probes (6) | 0 missed | 0 missed | |
