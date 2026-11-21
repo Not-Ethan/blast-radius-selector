@@ -838,7 +838,11 @@ def _changed_dict_keys(old: ast.Dict, new: ast.Dict, diffs) -> list | None:
 
 
 def _diff_nodes(o, n, ancestors, out):
-    """Collect minimal differing nodes of two ASTs, with their old ancestors."""
+    """Collect minimal differing nodes of two ASTs, with their old ancestors. Nodes
+    without a line number (comprehension clauses, argument lists, operators) are
+    descended into too, so a difference inside a lambda that sits in a comprehension
+    (`TRANSFORMS = {k: v for k, v in {...: lambda ...}.items() if ...}`) is still seen
+    as inside that lambda's body; the only consumer looks at the ancestor chain."""
     if type(o) is not type(n) or not isinstance(o, ast.AST):
         anchor = o if isinstance(o, ast.AST) and hasattr(o, "lineno") else (ancestors[-1] if ancestors else o)
         out.append((anchor, ancestors[:-1] if anchor is not o and ancestors else ancestors))
@@ -854,18 +858,12 @@ def _diff_nodes(o, n, ancestors, out):
             for x, y in zip(a, b):
                 if isinstance(x, ast.AST) and isinstance(y, ast.AST):
                     if dump(x) != dump(y):
-                        if hasattr(x, "lineno"):
-                            _diff_nodes(x, y, here, out)
-                        else:
-                            out.append((o, ancestors))
+                        _diff_nodes(x, y, here, out)
                 elif x != y:
                     out.append((o, ancestors))
         elif isinstance(a, ast.AST) and isinstance(b, ast.AST):
             if dump(a) != dump(b):
-                if hasattr(a, "lineno"):
-                    _diff_nodes(a, b, here, out)
-                else:
-                    out.append((o, ancestors))
+                _diff_nodes(a, b, here, out)
         elif _dump_any(a) != _dump_any(b):
             out.append((o, ancestors))
 
