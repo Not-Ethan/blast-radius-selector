@@ -204,6 +204,64 @@ _MEMO: dict = {}
 SEQ = [0]  # count of ordered sequences of 2+ items fingerprinted (memo hits included)
 
 
+def _slots_of(kind) -> list:
+    out = []
+    for c in kind.__mro__:
+        names = getattr(c, "__slots__", ())
+        if isinstance(names, str):
+            names = (names,)
+        out.extend(n for n in names if isinstance(n, str) and n not in out)
+    return out
+
+
+def _expr_fp(root, depth) -> str:
+    """Fingerprint of a sqlglot expression tree: every node's class, args (in order),
+    comments, type and meta, walked without recursion (trees can be deep). `parent` is
+    the back link of `args` and `_hash` a cache, so neither is read."""
+    parts = []
+    stack = [("node", root)]
+    while stack:
+        tag, item = stack.pop()
+        if tag == "text":
+            parts.append(item)
+            continue
+        if tag == "leaf":
+            parts.append(fp(item, depth + 1))
+            continue
+        node = item
+        slots = _slots_of(type(node))
+        if not ("args" in slots and "parent" in slots and isinstance(getattr(node, "args", None), dict)):
+            parts.append(fp(node, depth + 1))
+            continue
+        parts.append(f"({type(node).__module__}.{type(node).__qualname__}")
+        todo = []
+        extra = getattr(node, "__dict__", None)
+        if extra:
+            todo.append(("text", "__dict__"))
+            todo.append(("leaf", dict(extra)))
+        for name in slots:
+            if name in ("args", "parent", "_hash"):
+                continue
+            todo.append(("text", name))
+            try:
+                v = getattr(node, name)
+            except AttributeError:
+                todo.append(("text", "unset"))
+                continue
+            todo.append(("node" if v is not None and not isinstance(v, (str, int, float, bool, list, dict, tuple)) else "leaf", v))
+        for k, v in node.args.items():
+            todo.append(("text", repr(k)))
+            if type(v) is list:
+                todo.append(("text", "["))
+                todo.extend(("node", x) for x in v)
+                todo.append(("text", "]"))
+            else:
+                todo.append(("node" if v is not None and not isinstance(v, (str, int, float, bool, tuple, dict)) else "leaf", v))
+        todo.append(("text", ")"))
+        stack.extend(reversed(todo))
+    return "expr:" + _h("\x1f".join(parts))
+
+
 def fp(value, depth=0) -> str:
     """Deterministic fingerprint: equal fingerprints mean equal behaviour for the
     purpose of reading this value. Raises Unknown when it cannot tell."""
@@ -248,7 +306,8 @@ def _fp(value, depth) -> str:
     if kind.__name__ in ("dict_values", "dict_keys", "dict_items"):
         return f"{kind.__name__}:" + _h(repr([fp(v, depth + 1) for v in value]))
     if isinstance(value, enum.Enum):
-        return f"enum:{type(value).__module__}.{type(value).__qualname__}.{value.name}"
+        # the member's value too: an edit of a member's value keeps its name
+        return f"enum:{type(value).__module__}.{type(value).__qualname__}.{value.name}=" + fp(value._value_, depth + 1)
     if isinstance(value, type):
         return f"class:{value.__module__}:{value.__qualname__}"
     if isinstance(value, types.ModuleType):
@@ -296,9 +355,21 @@ def _fp(value, depth) -> str:
     if wrapped is not None and callable(value):  # functools.lru_cache / wraps
         return f"wrapped:{kind.__qualname__}:" + fp(wrapped, depth + 1)
     state = getattr(value, "__dict__", None)
+    slots = _slots_of(kind)
+    if "args" in slots and "parent" in slots and isinstance(getattr(value, "args", None), dict):
+        return _expr_fp(value, depth)
+    if isinstance(state, dict) and slots:
+        # Slotted classes below a class without __slots__ have both: read both (sqlglot
+        # expressions keep their content in slots next to an empty __dict__).
+        values = [("__dict__", fp(dict(state), depth + 1))]
+        for name in slots:
+            try:
+                values.append((name, fp(getattr(value, name), depth + 1)))
+            except AttributeError:
+                values.append((name, "unset"))
+        return f"slots:{kind.__module__}.{kind.__qualname__}:" + _h(repr(values))
     if isinstance(state, dict):
         return f"obj:{kind.__module__}.{kind.__qualname__}:" + fp(dict(state), depth + 1)
-    slots = [s for c in kind.__mro__ for s in getattr(c, "__slots__", ()) if isinstance(s, str)]
     if slots:
         values = []
         for name in slots:
@@ -310,11 +381,11 @@ def _fp(value, depth) -> str:
     raise Unknown(kind.__qualname__)
 
 
-def state_fingerprint(root_modules=("sqlglot",)) -> dict:
+def state_fingerprint(root_modules=("sqlglot",), loaded_roots=()) -> dict:
     """{holder\\tattr: {"d": {key: fp}} | {"v": fp} | {"u": reason}} for every attribute of
     every class defined in a sqlglot module and every global of every sqlglot module,
     after importing all of them. Holders: "module:qualname" for classes, "module" for
-    modules."""
+    modules. Modules under `loaded_roots` are visited too, but only those already imported."""
     import importlib
     import pkgutil
     import sys
@@ -407,7 +478,8 @@ def state_fingerprint(root_modules=("sqlglot",)) -> dict:
                 visit_class(value)
 
     for name, module in sorted(sys.modules.items()):
-        if not any(name == r or name.startswith(r + ".") for r in root_modules) or module is None:
+        if not any(name == r or name.startswith(r + ".") for r in tuple(root_modules) + tuple(loaded_roots)) \
+                or module is None:
             continue
         for attr, value in list(vars(module).items()):
             if attr.startswith("__") and attr.endswith("__"):
