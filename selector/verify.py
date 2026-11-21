@@ -314,7 +314,7 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
             current = _install_probes(overlay, probes)
             runner.ON_START = lambda node: current.__setitem__("test", node)
 
-        restricted = bool(groups) and any(allowed for allowed, _ in groups)
+        restricted = bool(groups) and any(group[0] for group in groups)
         if restricted:
             # Wrap the fixture loaders before any test module imports them. If the
             # overlay's helpers cannot be wrapped, every group simply runs all of
@@ -336,11 +336,41 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
             finally:
                 signal.setitimer(signal.ITIMER_REAL, 0)
         failed, durations = set(), {}
-        for allowed, group_tests in (groups or [({}, tests)]):
+        result["stage"] = {}
+        for group in (groups or [({}, tests)]):
+            allowed, group_tests = group[0], group[1]
+            expected = group[2] if len(group) > 2 else None
+            fallback = bool(group[3]) if len(group) > 3 else False
             if restricted:
                 cases.ALLOWED.clear()
                 cases.ALLOWED.update({os.path.normpath(f): frozenset(v) for f, v in allowed.items()})
-            group_failed, group_durations = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
+            if expected is None:
+                group_failed, group_durations = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
+            else:
+                # Stage check (selector/stage.py): stop each case after optimize()
+                # and compare fingerprints; the test's own result is not used.
+                from selector import stage
+
+                executor = importlib.import_module("sqlglot.executor")
+                stage.EXPECTED[:] = [tuple(e) for e in expected]
+                stage.OBSERVED.clear()
+                stage.install(executor)
+                try:
+                    _, group_durations = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
+                finally:
+                    stage.uninstall(executor)
+                same = [tuple(o) for o in stage.OBSERVED] == stage.EXPECTED
+                for node in group_tests:
+                    result["stage"][node] = {"same": same, "calls": len(stage.OBSERVED), "expected": len(stage.EXPECTED),
+                                             "fallback": bool(fallback and not same)}
+                if same:
+                    group_failed = set()
+                elif fallback:
+                    # optimize() changed something: run the same cases in full
+                    group_failed, more = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
+                    group_durations.update(more)
+                else:
+                    group_failed = set(group_tests)
             failed |= set(group_failed)
             durations.update(group_durations)
         result["failed"] = sorted(failed)

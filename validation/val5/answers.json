@@ -888,6 +888,268 @@
 "c5ib": {
 "failing": [],
 "kind": "new_fixture"
+},
+"c3bv": {
+"failing": [],
+"kind": "new_module"
+},
+"dpcf": {
+"failing": [
+650,
+651
+],
+"kind": "move_test"
+},
+"edp9": {
+"failing": [],
+"kind": "config_edit"
+},
+"etbf": {
+"failing": [
+159,
+160,
+161
+],
+"kind": "delete_file"
+},
+"fe8s": {
+"failing": [
+27,
+31,
+164,
+165,
+166,
+167,
+168,
+173,
+180,
+181,
+183,
+184,
+185,
+186,
+187,
+192,
+194,
+196,
+197,
+200,
+203,
+204,
+205,
+216,
+217,
+218,
+219,
+222,
+226,
+228,
+231,
+237,
+246,
+247,
+251,
+253,
+259,
+261,
+262,
+271,
+314,
+345,
+383,
+390,
+392,
+404,
+407,
+434,
+442,
+444,
+454,
+462,
+468,
+469,
+476,
+532,
+581,
+586,
+607,
+617,
+623,
+628,
+629,
+630,
+631,
+632,
+633,
+634,
+635,
+636,
+637,
+638,
+639,
+640,
+641,
+642,
+643,
+644,
+645,
+646,
+647,
+648,
+649,
+672,
+674,
+714,
+719,
+773,
+818,
+821,
+855,
+903,
+907,
+974,
+1157,
+1224,
+1295,
+1353,
+1382,
+1417,
+1434,
+1486,
+1513,
+1526,
+1538,
+1568,
+1584
+],
+"kind": "rename_module"
+},
+"fkki": {
+"failing": [
+345,
+368,
+371
+],
+"kind": "dict_entry"
+},
+"fstc": {
+"failing": [],
+"kind": "new_module"
+},
+"g39k": {
+"failing": [],
+"kind": "new_fixture"
+},
+"g6be": {
+"failing": [],
+"kind": "docstring_or_annotation"
+},
+"g83d": {
+"failing": [
+855
+],
+"kind": "dict_entry"
+},
+"gajg": {
+"failing": [
+855
+],
+"kind": "test_edit"
+},
+"hnvf": {
+"failing": [
+620
+],
+"kind": "dict_entry"
+},
+"i3yd": {
+"failing": [],
+"kind": "config_edit"
+},
+"i5s3": {
+"failing": [
+184,
+231,
+314,
+389,
+821,
+914,
+1224,
+1568
+],
+"kind": "delete_file"
+},
+"ithz": {
+"failing": [],
+"kind": "multi"
+},
+"iu4j": {
+"failing": [],
+"kind": "new_fixture"
+},
+"j2w9": {
+"failing": [
+315
+],
+"kind": "dict_entry"
+},
+"jgxs": {
+"failing": [],
+"kind": "test_edit"
+},
+"jmj8": {
+"failing": [],
+"kind": "docstring_or_annotation"
+},
+"jrt5": {
+"failing": [
+536
+],
+"kind": "test_edit"
+},
+"jzjs": {
+"failing": [],
+"kind": "new_module"
+},
+"mnvv": {
+"failing": [],
+"kind": "formatting"
+},
+"msua": {
+"failing": [],
+"kind": "formatting"
+},
+"mtyb": {
+"failing": [],
+"kind": "config_edit"
+},
+"n6i4": {
+"failing": [],
+"kind": "docstring_or_annotation"
+},
+"n8m5": {
+"failing": [],
+"kind": "formatting"
+},
+"nt68": {
+"failing": [],
+"kind": "docstring_or_annotation"
+},
+"pbsp": {
+"failing": [],
+"kind": "fixture_noop"
+},
+"pq79": {
+"failing": [],
+"kind": "new_module"
+},
+"qd3d": {
+"failing": [],
+"kind": "new_test_file"
+},
+"rafs": {
+"failing": [],
+"kind": "test_edit"
 }
 }
 }

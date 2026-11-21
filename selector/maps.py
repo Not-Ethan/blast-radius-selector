@@ -38,6 +38,9 @@ class Maps:
         # Typed coverage (tools/trace_typed.py): file -> line -> {receiver class key:
         # set index} for lines reading `self.NAME`/`cls.NAME`, and each receiver's MRO.
         self.typed = data.get("typed", {})
+        # TPC-DS stage records (tools/trace_stage.py): outer pseudo-tests and the
+        # optimize() fingerprints of each case at the pinned commit.
+        self.stage = data.get("stage", {})
         self.typed_mro = {k: set(v) for k, v in data.get("typed_mro", {}).items()}
         # Tests that loop over fixture cases (tools/build_cases.py): id -> [(fixture, kind)]
         self.case_tests = {}

@@ -34,6 +34,9 @@ PROBE_MIN_COUNT = int(os.environ.get("BR_PROBE_MIN_COUNT", "50"))
 PROBE_MIN_TESTS = int(os.environ.get("BR_PROBE_MIN_TESTS", "3"))
 # Run fixture-loop tests restricted to the cases a patch can affect.
 CASE_RESTRICT = os.environ.get("BR_CASE_RESTRICT", "1") == "1"
+# Verify TPC-DS execution by comparing optimize() outputs (selector/stage.py).
+STAGE = os.environ.get("BR_STAGE", "1") == "1"
+STAGE_MISMATCH = 0.4  # rough chance a reached case's optimize() output differs
 
 # Probability that one candidate test fails, by reason (measured on the kit
 # sample and the labelled validation sets: ~0.13-0.26 for function-body edits,
@@ -73,6 +76,7 @@ class Plan:
     import_errors: dict = field(default_factory=dict)
     verify_cpu_estimate: float = 0.0
     restrict: dict = field(default_factory=dict)  # number -> {fixture: case ordinals} for restricted runs
+    stage: dict = field(default_factory=dict)  # number -> expected optimize() fingerprints (stage check)
     note: str = ""
 
     def final_tests(self) -> set[int]:
@@ -181,6 +185,7 @@ def case_restrictions(possible, found, maps, index_of, id_of_number) -> dict:
 
     from .cases import changed_new_cases
 
+    STAGE_CHECKS.clear()
     if not maps.case_tests:
         return {}
     for f in found.files:
@@ -255,7 +260,49 @@ def case_restrictions(possible, found, maps, index_of, id_of_number) -> dict:
             need[key] |= changed_cache[(f.path, kinds[key])]
         if ok:
             out[n] = need
+            stage = _stage_check(maps, node, need, reasons, bit, any(f.data & bit for f in data))
+            if stage is not None:
+                STAGE_CHECKS[n] = stage
     return out
+
+
+STAGE_CHECKS: dict = {}  # number -> (expected fingerprint triples in call order, CPU estimate); filled per commit
+
+
+def _stage_check(maps, node, need, reasons, bit, data_hit):
+    """Expected optimize() fingerprints if `node` can be verified by stopping each
+    needed case after optimize() (selector/stage.py), else None. Requires: no data
+    change the test reads, no reason that reaches code the test runs outside
+    optimize() (any case's outer pseudo-test, or the code outside the case loop),
+    and deterministic recordings with at least one call for every needed case."""
+    import os as _os
+
+    info = getattr(maps, "stage", {}).get(node)
+    cases_info = maps.cases.get(node)
+    if not info or not cases_info or data_hit:
+        return None
+    outside = cases_info["outside"]
+    outer_mask = 0
+    for i in info["outer"]:
+        outer_mask |= 1 << i
+    for m in reasons:
+        if m & bit and (m & outer_mask or m >> outside & 1):
+            return None
+    keep = sorted(need.get(_os.path.normpath(info["fixture"]), ()))
+    if any(len(v) for fx, v in need.items() if fx != _os.path.normpath(info["fixture"])):
+        return None
+    if not keep:
+        return None
+    expected = []
+    warm = info.get("warm", 0.0)
+    cpu = warm  # each case was measured alone; run together they share one warm-up
+    for k in keep:
+        calls = info["calls"][k] if k < len(info["calls"]) else None
+        if not calls:
+            return None
+        expected.extend(tuple(c) for c in calls)
+        cpu += max(0.0, (info["cpu"][k] or 0.0) - warm)
+    return expected, cpu
 
 
 def restricted_estimate(maps, node, need, full_est) -> float:
@@ -346,6 +393,19 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
             if reduced < est[n]:
                 est[n] = reduced
                 plan.restrict[n] = need
+            if STAGE and n in STAGE_CHECKS:
+                expected, stage_cpu = STAGE_CHECKS[n]
+                stage_est = (stage_cpu + 0.05) * CPU_SCALE
+                # A different optimize() result does not mean the test fails: when
+                # running those cases in full is itself cheap enough, the verifier
+                # does that instead of including the test.
+                fallback = reduced <= max(EXPENSIVE_CPU, EXPENSIVE_SHARE * seconds_of[n])
+                if fallback:
+                    stage_est += STAGE_MISMATCH * reduced
+                if stage_est < est[n]:
+                    est[n] = stage_est
+                    plan.restrict[n] = need
+                    plan.stage[n] = (expected, fallback)
 
     # Too costly to run here: more CPU than EXPENSIVE_CPU and more than
     # EXPENSIVE_SHARE of the test's recorded seconds (what including it costs).
@@ -481,10 +541,12 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
     # keep the restrictions of every test that may be run: this round, and the
     # second round of a light probe (plan.lite_rest)
     plan.restrict = {n: plan.restrict[n] for n in set(verify) | plan.lite_rest if n in plan.restrict}
+    plan.stage = {n: plan.stage[n] for n in plan.restrict if n in plan.stage}
     restricted = {n: sum(len(v) for v in plan.restrict[n].values()) for n in verify if n in plan.restrict}
     if restricted:
-        plan.note += " | cases " + ", ".join(f"{id_of_number[n].rsplit('::', 1)[-1]}={k}({est[n]:.1f}s)"
-                                             for n, k in sorted(restricted.items()))
+        plan.note += " | cases " + ", ".join(
+            f"{id_of_number[n].rsplit('::', 1)[-1]}={k}({est[n]:.1f}s{', stage' if n in plan.stage else ''})"
+            for n, k in sorted(restricted.items()))
 
     # Files for the overlay and modules whose import we double-check.
     for change in changes:
@@ -514,9 +576,19 @@ def verify_groups(plan: Plan, numbers, id_of):
     loader wrapper never trims a read we did not reason about."""
     import os as _os
 
-    restricted = {n: plan.restrict[n] for n in numbers if n in plan.restrict}
-    if not restricted or _MAPS is None:
+    if _MAPS is None:
         return None
+    # Stage-checked tests (selector/stage.py) run alone: the optimize() hook would
+    # stop any other test that executes queries.
+    staged = [n for n in numbers if n in plan.stage and n in plan.restrict]
+    stage_groups = [({fx: sorted(v) for fx, v in plan.restrict[n].items()}, [id_of[n]], plan.stage[n][0], plan.stage[n][1])
+                    for n in staged]
+    numbers = [n for n in numbers if n not in staged]
+    restricted = {n: plan.restrict[n] for n in numbers if n in plan.restrict}
+    if not restricted:
+        if not stage_groups:
+            return None
+        return ([({}, [id_of[n] for n in numbers])] if numbers else []) + stage_groups
     while True:
         allowed = {}
         for n, need in restricted.items():
@@ -537,16 +609,15 @@ def verify_groups(plan: Plan, numbers, id_of):
                     break
         if not moved:
             break
-    if not restricted:
-        return None
     others = [id_of[n] for n in numbers if n not in restricted]
     # Unrestricted tests that read a restricted fixture through a loader would be
     # trimmed too if they shared the group: they run in their own group.
     groups = []
     if others:
         groups.append(({}, others))
-    groups.append(({fx: sorted(v) for fx, v in allowed.items()}, [id_of[n] for n in sorted(restricted)]))
-    return groups
+    if restricted:
+        groups.append(({fx: sorted(v) for fx, v in allowed.items()}, [id_of[n] for n in sorted(restricted)]))
+    return (groups + stage_groups) or None
 
 
 def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, id_of, number_of, seconds_of) -> None:
@@ -586,6 +657,8 @@ def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, i
             continue
         plan.failed = {number_of[i] for i in job.result["failed"] if i in number_of}
         plan.import_errors = job.result.get("import_errors", {})
+        if job.result.get("stage"):
+            plan.note += f" | stage {job.result['stage']}"
         if plan.probes:
             plan.probe_result = job.result.get("probes", {})
             plan.note += f" | probes {plan.probe_result} -> {'inert' if plan.inert() else 'live'}"

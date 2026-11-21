@@ -96,6 +96,22 @@ ones against the patched tree and keep only the ones that fail.**
      be printed). All candidate rules (line coverage, class usage, name references, dict
      keys) therefore apply per case unchanged.
 
+   **Stopping TPC-DS cases after the optimizer** (`selector/stage.py`). Each TPC-DS
+   case of `test_execute_tpcds` parses the query, calls `execute()` (which runs
+   `optimize()`, then plans and executes the optimized tree in Python) and compares
+   with duckdb; executing is what costs ~20 s. At build time each case was also traced
+   with coverage recorded only *outside* `optimize()` calls (an "outer" pseudo-test),
+   and the fingerprint of each `optimize()` call's input, output and input-after-call
+   was recorded twice under different hash seeds (cases that differ are never checked
+   this way). When no reason the test is a candidate reaches any case's outer
+   pseudo-test or the code outside the case loop, and the patch does not touch the
+   fixture, everything outside `optimize()` runs exactly as at the pinned commit as
+   long as `optimize()` returns the same tree. The verifier then runs the affected
+   cases only up to the end of `optimize()`, compares the fingerprints (node classes,
+   args in order, types, comments, meta, parent links and shared nodes, walked without
+   calling sqlglot code) and stops each case; any difference, missing or extra call
+   includes the test.
+
    A test is restricted only when every reason it is a candidate is attributable to
    cases; otherwise (no per-case coverage, another data file it reads, a change that no
    single-case run executes, `tests/helpers.py` touched) it runs every case. Restricted
