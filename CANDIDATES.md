@@ -2,8 +2,10 @@
 # Candidate submissions (branch br-opt)
 
 > **Final entry if the cutoff were now: M19 (e73afb6)** — published (public d96e97c),
-> fresh-pull checked, practice 165.2 s (140.205 simulated, same as M17, so its state
-> comparisons narrowed on the scorer) with 0 missed.
+> fresh-pull checked, practice 165.2 s (140.205 simulated, same as M17) with 0 missed.
+> The equal simulated time does not show that its state comparisons narrowed on the
+> scorer: on official-style sets they barely change the simulated cost (see "CPU
+> diagnosis" at the end).
 >
 > No candidate is recommended next yet. Known robustness issue: in the local emulated
 > container (not natively, and evidently not on the scorer) the state comparisons fall
@@ -774,4 +776,34 @@ code mutants (seed 4242) the selector chose a probe plan 8 times and judged none
 (val6: 0 probe plans, val9: 1, not inert). Inert decisions come from `is`/`==`-type
 swaps, so the new evidence is a fresh probe-edit set (`tools/gen_probe_edits.py`, seed
 777, 73 commits after removing 7 already in val15): 42 probe plans, 22 inert decisions,
-each labelled by real pytest (see the latest note below for right/wrong).
+each labelled by real pytest: **22 right, 0 wrong** (all 0 failing). With the earlier
+25 (sample, val4, val15): 47 of 47 labelled inert decisions right. One probe edit
+(p149, `start_hash == end_hash` -> `is` in `helper.while_changing`) makes every
+optimizer test loop forever; the selector's light probe timed out ("verification
+unavailable") and it included all 121 candidates.
+
+New kinds (kinds2), labelled so far: 13 of 47, 0 commits with a miss (M20 selection).
+
+## CPU diagnosis (after M19's practice score)
+
+Clean interleaved local runs, exact trees, pinned fingerprint precomputed as in the
+image, labellers paused; CPU = user+sys of the whole selector run (native M1):
+
+| set | M13 total (verification) | M17 | M19 | M19 with state comparison off |
+| --- | --- | --- | --- | --- |
+| val9 (60 official-style) | 12.26 (9.76), sim 250.3 | 17.83 (8.20), sim 242.5 | 17.92 (8.21), sim 242.3 | 11.31, sim 242.5 |
+| val6 (60 official-style) | 20.77 (18.26), sim 193.2 | 28.89 (18.37), sim 193.2 | 26.41 (18.27), sim 193.2 | 21.55, sim 193.2 |
+| kit sample (30) | 9.74 (8.14), sim 96.8 | 12.69 (7.45), sim 96.8 | 10.93 (7.48), sim 96.8 | 9.69, sim 96.8 |
+| val5 (64 new kinds) | 5.40 (3.19), sim 238.6 | 10.65 (1.36), sim 176.4 | 7.12 (1.33), sim 176.4 | 5.34, sim 238.6 |
+
+* Verification CPU did not grow from M13 to M17/M19 (flat or lower everywhere): the
+  extra CPU is the state comparison. Non-verification CPU minus M13's, divided by the
+  comparisons run: M17 1.18-1.34 s each (6 per 60 official-style commits), M19
+  0.60-0.70 s each (8-12 per 60 commits, because M18 adds class-body sites). That is
+  why M19 saved only ~1 s on practice.
+* On official-style sets the comparisons buy almost nothing: val9 0.2 s, val6 0,
+  sample 0 simulated, for 4.9-6.6 s local CPU per 60 commits. They pay on dict-entry
+  kinds (val5: 62 s for 1.8 s CPU; val1, val2).
+* So M13 -> M17's -22.3 s on practice need not come from the comparisons: M14 alone
+  took val9 from 250.3 to 242.5. Scorer/local CPU ratio implied by M13 -> M17 (+9.4 s
+  scorer, about +5 s local per 40 official-style commits): about 1.9 for this work.
