@@ -515,7 +515,8 @@ def run_jobs(jobs: list[Job], root: str, tmp_base: str, parallel: int, deadline:
                 del running[pid]
                 shutil.rmtree(os.path.join(tmp_base, f"ov_{job.key}"), ignore_errors=True)
                 if log:
-                    log(f"verify {job.key}: {len(job.tests)} tests, cpu {job.cpu:.2f}s wall {job.wall:.2f}s -> "
+                    rss = usage.ru_maxrss / (1 << 20 if sys.platform == "darwin" else 1 << 10)  # MB
+                    log(f"verify {job.key}: {len(job.tests)} tests, cpu {job.cpu:.2f}s wall {job.wall:.2f}s rss {rss:.0f}MB -> "
                         f"{'none' if job.result is None else len(job.result.get('failed', []))} failed"
                         f"{' ERROR ' + str(job.result.get('error')) if job.result and job.result.get('error') else ''}"
                         f"{' IMPORT ' + str(list(job.result.get('import_errors', {}))) if job.result and job.result.get('import_errors') else ''}")

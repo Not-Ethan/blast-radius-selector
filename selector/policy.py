@@ -446,8 +446,13 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
     reasons = {reason_of.get(n, "other") for n in possible}
     p_any = max((P_FAIL[r] for r in reasons), default=0.0)
 
+    pack_cache = {}
+
     def packed(tests) -> float:
-        return pack(sorted(tests), ms_of)[1] / 1000.0
+        key = frozenset(tests)
+        if key not in pack_cache:
+            pack_cache[key] = pack(sorted(tests), ms_of, fast=True)[1] / 1000.0
+        return pack_cache[key]
 
     def verify_cpu_of(tests) -> float:
         classes = {"::".join(id_of_number[n].split("::")[:2]) for n in tests if n in id_of_number}

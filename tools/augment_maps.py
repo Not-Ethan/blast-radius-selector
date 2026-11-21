@@ -46,6 +46,29 @@ def main():
         rec["measured"] = json.load(open(cpu_path))["cpu"] if os.path.exists(cpu_path) else None
         records.append(rec)
     records.sort(key=lambda r: (r["test"], r["fixture"] or "", r["ordinal"]))
+    # Cases traced from a warm zygote (tools/trace_cases.py --warm) did not see the
+    # imports: add the cold zero-case record's lines and entries, and give them the
+    # whole test's instantiations, opened files and listed directories (a superset).
+    outside_of = {r["test"]: r for r in records if r["fixture"] is None}
+    real_index = {node: i for i, node in enumerate(tests)}
+    for rec in records:
+        if not rec.get("warm"):
+            continue
+        cold = outside_of.get(rec["test"])
+        if cold is None:
+            sys.exit(f"{rec['pseudo']}: warm case without a cold outside record")
+        for key in ("func_lines", "mod_lines", "entered"):
+            for f, items in cold[key].items():
+                rec[key][f] = sorted(set(rec[key].get(f, [])) | set(items))
+        # The CPU measured warm leaves out the imports; restricted_estimate models
+        # every case as measured alone and cold, so add the cold zero-case run (an
+        # overestimate by the warm part of the code outside the loops).
+        if rec["measured"] is not None:
+            rec["measured"] = None if cold["measured"] is None else rec["measured"] + cold["measured"]
+        bit = 1 << real_index[rec["test"]]
+        rec["opens"] = sorted(set(rec["opens"]) | set(cold["opens"]) | {f for f, m in flat["opens"].items() if m & bit})
+        rec["lists"] = sorted(set(rec["lists"]) | set(cold["lists"]) | {f for f, m in flat["lists"].items() if m & bit})
+        rec["inst"] = sorted(set(rec.get("inst", [])) | set(cold.get("inst", [])) | {f for f, m in flat["inst"].items() if m & bit})
     cases = {}
     missing_cpu = 0
     for rec in records:

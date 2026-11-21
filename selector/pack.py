@@ -59,8 +59,10 @@ def _improve(items_ms: dict[int, int], loads: list[int], bins: list[list[int]]):
     return loads, bins
 
 
-def pack(numbers: list[int], ms_of: dict[int, int]) -> tuple[list[list[int]], int]:
-    """Return (workers, cost_ms). An empty selection costs nothing."""
+def pack(numbers: list[int], ms_of: dict[int, int], fast: bool = False) -> tuple[list[list[int]], int]:
+    """Return (workers, cost_ms). An empty selection costs nothing. fast: skip the
+    move/swap pass for large selections (planner estimates; LPT is within one test
+    of the improved result there, and the pass is quadratic)."""
     numbers = sorted(set(numbers))
     if not numbers:
         return [], 0
@@ -75,7 +77,8 @@ def pack(numbers: list[int], ms_of: dict[int, int]) -> tuple[list[list[int]], in
                 break
             continue
         loads, bins = _lpt(items, k)
-        loads, bins = _improve(ms_of, loads, bins)
+        if not (fast and len(items) > 64):
+            loads, bins = _improve(ms_of, loads, bins)
         cost = max(loads) + WORKER_MS * k
         if best is None or cost < best[0]:
             best = (cost, [sorted(b) for b in bins if b])

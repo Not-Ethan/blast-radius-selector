@@ -58,11 +58,25 @@ def main():
         if unknown_numbers:
             log(f"{len(unknown_numbers)} tests are not in the maps; they are added whenever a commit is risky")
 
+        total_limit = TIME_LIMIT or policy.default_time_limit(len(commits))
+        # Analysis is not interruptible like verification: past this budget the
+        # remaining commits are not analysed and run everything (never reached in
+        # normal batches: analysis takes ~0.1 s per commit).
+        analysis_deadline = START + total_limit * 0.5
         plans = []
         for cid in commits:
+            if time.monotonic() > analysis_deadline:
+                log(f"{cid}: analysis time budget spent; running everything")
+                plans.append(policy.Plan(cid, include=set(number_of.values())))
+                continue
             try:
                 text = open(os.path.join(commit_dir, cid + ".patch"), "rb").read().decode("utf-8", "replace")
                 changes = parse_patch(text)
+                paths = [c.path for c in changes]
+                if (text.strip() and not changes) or len(set(paths)) != len(paths):
+                    # text we could not read as a diff, or two sections for one file:
+                    # do not reason about it
+                    raise ValueError("unparsed patch or repeated file section")
                 found = finder.analyze(changes)
                 plan = policy.plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_numbers)
             except Exception as error:  # noqa: BLE001 - never lose a commit
@@ -70,7 +84,6 @@ def main():
                 plan = policy.Plan(cid, include=set(number_of.values()))
             plans.append(plan)
 
-        total_limit = TIME_LIMIT or policy.default_time_limit(len(commits))
         deadline = START + total_limit
         id_of = {t["number"]: t["id"] for t in tests}
         policy.verify_plans(plans, ROOT, TMP, deadline, log, id_of, number_of, seconds_of)

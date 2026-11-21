@@ -142,7 +142,12 @@ def parse_patch(text: str) -> list[FileChange]:
         i += 1
     for change in changes:
         if not change.hunks and not change.binary and not change.is_new and not change.is_deleted and not change.is_rename:
-            change.mode_only = True
+            if change.old_mode is not None or change.new_mode is not None:
+                change.mode_only = True
+            else:
+                # neither hunks nor a mode change: a content change we cannot see
+                # (truncated diff, unknown format); handled like a binary change
+                change.binary = True
     return changes
 
 

@@ -80,6 +80,10 @@ def main():
     ap.add_argument("--tests", required=True)
     ap.add_argument("--jobs", type=int, default=2)
     ap.add_argument("--measure", action="store_true")
+    ap.add_argument("--warm", action="store_true",
+                    help="trace/measure cases in children of a zygote that already imported the tests "
+                         "(the cold 'outside' records must exist; augment_maps unions them in)")
+    ap.add_argument("--outside-only", action="store_true", help="only the cold zero-case records")
     o = ap.parse_args()
     root = os.path.realpath(o.repo)
     out = os.path.abspath(o.out)
@@ -91,18 +95,30 @@ def main():
     os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
     trace_tests.preload()
 
+    if o.warm:
+        # Import the loaders (wrapped) and the test modules once in the zygote; each
+        # case then runs in a fork that starts from this state. Import-time code and
+        # anything the zygote ran are in the cold 'outside' record of the test.
+        import importlib
+
+        import tests.helpers as helpers
+
+        cases.install(helpers)
+        for test in o.tests.split(","):
+            importlib.import_module(test.split("::")[0][:-3].replace("/", "."))
     work = []
     for test in o.tests.split(","):
         fixtures = table[test]
         for fixture, kind in fixtures:
             text = open(os.path.join(root, "tests", "fixtures", fixture), "rb").read().decode("utf-8")
             n = len(cases.pair_cases(text) if kind == "pairs" else cases.line_cases(text))
-            for k in range(n):
+            for k in range(n if not o.outside_only else 0):
                 allowed = {os.path.normpath(f): frozenset() for f, _ in fixtures}
                 allowed[os.path.normpath(fixture)] = frozenset([k])
                 work.append((test, fixture, k, allowed))
-        # the test with every loop empty: what runs outside the cases
-        work.append((test, None, -1, {os.path.normpath(f): frozenset() for f, _ in fixtures}))
+        # the test with every loop empty: what runs outside the cases (always cold)
+        if not o.warm:
+            work.append((test, None, -1, {os.path.normpath(f): frozenset() for f, _ in fixtures}))
     suffix = ".cpu.json" if o.measure else ".json"
     names = {}
     pending = []
@@ -128,7 +144,7 @@ def main():
         tmp = os.path.join(out, name + suffix + ".tmp")
         if status == 0 and os.path.exists(tmp):
             record = json.load(open(tmp))
-            record.update({"test": test, "fixture": fixture, "ordinal": k,
+            record.update({"test": test, "fixture": fixture, "ordinal": k, "warm": bool(o.warm),
                            "pseudo": pseudo_id(test, fixture, k) if fixture else f"{test}[outside]"})
             json.dump(record, open(os.path.join(out, name + suffix), "w"))
             os.remove(tmp)

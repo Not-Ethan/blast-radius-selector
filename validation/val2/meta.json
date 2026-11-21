@@ -418,5 +418,374 @@
   "desc": [
    "sqlglot/parsers/sqlite.py:197 'token = self._tokens[self._index - 2]' -> 'token = self._tokens[self._index - 3]'"
   ]
+ },
+ "32id": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/dialects/dialect.py:794 'HAS_DISTINCT_ARRAY_CONSTRUCTORS = False' -> 'HAS_DISTINCT_ARRAY_CONSTRUCTORS = True'"
+  ],
+  "labeller": "pytest"
+ },
+ "36ka": {
+  "kind": "multi",
+  "desc": [
+   "sqlglot/optimizer/pushdown_predicates.py:303 'not node.args.get(\"group\")' -> 'node.args.get(\"group\")'",
+   "sqlglot/optimizer/resolver.py:285 'if self._source_nodes is None:' -> 'if self._source_nodes is not None:'"
+  ],
+  "labeller": "pytest"
+ },
+ "622c": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/tpc-h/tpc-h.sql:279 '        and c_nationkey = s_nationkey' -> '        and c_natonkey = s_nationkey'"
+  ],
+  "labeller": "pytest"
+ },
+ "76nm": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/tpc-h/tpc-h.sql:1049 '    \"lineitem\".\"l_orderkey\"' -> '   '"
+  ],
+  "labeller": "pytest"
+ },
+ "bet4": {
+  "kind": "syntax",
+  "desc": [
+   "sqlglot/optimizer/qualify.py:32 syntax"
+  ],
+  "labeller": "pytest"
+ },
+ "k42d": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/generator.py:373 'DIRECTED_JOINS = False' -> 'DIRECTED_JOINS = True'"
+  ],
+  "labeller": "pytest"
+ },
+ "muzi": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/dialects/postgres.py:93 'DROP_UNKNOWN_ESCAPES = True' -> 'DROP_UNKNOWN_ESCAPES = False'"
+  ],
+  "labeller": "pytest"
+ },
+ "n28f": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/expressions/temporal.py:402 '\"this\": False,' -> '\"thisX\": False,'"
+  ],
+  "labeller": "pytest"
+ },
+ "n2hx": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/generators/singlestore.py:916 '\"ltrim\",' -> '\"ltrimX\",'"
+  ],
+  "labeller": "pytest"
+ },
+ "na2x": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/pushdown_cte_alias_columns.sql:11 'WITH x(c) AS ((SELECT 1 a) HAVING c > 0) SELECT * ' -> 'WITH x(c) AS (SELECT 1 a) HAVING c > 0) SELECT * F'"
+  ],
+  "labeller": "pytest"
+ },
+ "nkx6": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/expressions/ddl.py:70 '\"start\": False,' -> '\"startX\": False,'"
+  ],
+  "labeller": "pytest"
+ },
+ "nmhp": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/executor/python.py:162 'query.set(\"with_\", self._ctes)' -> 'query.set(\"with_X\", self._ctes)'"
+  ],
+  "labeller": "pytest"
+ },
+ "nn8s": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/optimizer/isolate_table_selects.py:47 '.subquery(source.alias, copy=False)' -> '.subquery(source.alias, copy=True)'"
+  ],
+  "labeller": "pytest"
+ },
+ "nnbn": {
+  "kind": "comment",
+  "desc": [
+   "sqlglot/dialects/starrocks.py:33 comment"
+  ],
+  "labeller": "pytest"
+ },
+ "ntrn": {
+  "kind": "test",
+  "desc": [
+   "tests/dialects/test_trino.py:670 comment"
+  ],
+  "labeller": "pytest"
+ },
+ "nyzh": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/dialects/risingwave.py:1 'from __future__ import annotations' -> 'pass'"
+  ],
+  "labeller": "pytest"
+ },
+ "p65s": {
+  "kind": "delete",
+  "desc": [
+   "delete tests/fixtures/optimizer/tpc-ds/tpc-ds.sql"
+  ],
+  "labeller": "pytest"
+ },
+ "ped4": {
+  "kind": "comment",
+  "desc": [
+   "sqlglot/dialects/dune.py:6 comment"
+  ],
+  "labeller": "pytest"
+ },
+ "q9x7": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/dialects/oracle.py:114 '\"START\": TokenType.BEGIN,' -> '\"STARTX\": TokenType.BEGIN,'"
+  ],
+  "labeller": "pytest"
+ },
+ "qtif": {
+  "kind": "test",
+  "desc": [
+   "tests/dialects/test_dax.py:34 test literal 'Total Amount' -> 'Total AmXunt'"
+  ],
+  "labeller": "pytest"
+ },
+ "rez4": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/qualify_columns__invalid.sql:52 'SELECT p.range FROM range(10) AS p WHERE EXISTS (S' -> 'SELECT p.range FROM range(10) AS p WHERE EXISTS (S'"
+  ],
+  "labeller": "pytest"
+ },
+ "rfx5": {
+  "kind": "test",
+  "desc": [
+   "tests/dialects/test_tableau.py:76 comment"
+  ],
+  "labeller": "pytest"
+ },
+ "rgad": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/parsers/drill.py:13 'return exp.Escape(this=ilike, expression=escape) if escape e' -> 'return exp.Escape(this=ilike, expression=escape) if not esca'"
+  ],
+  "labeller": "pytest"
+ },
+ "rhd4": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/dialects/tableau.py:10 'LOG_BASE_FIRST = False' -> 'LOG_BASE_FIRST = True'"
+  ],
+  "labeller": "pytest"
+ },
+ "rs63": {
+  "kind": "syntax",
+  "desc": [
+   "sqlglot/parsers/dremio.py:13 syntax"
+  ],
+  "labeller": "pytest"
+ },
+ "rvbw": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/generators/presto.py:316 'exp.DType.TIMESTAMPNTZ: \"TIMESTAMP\",' -> 'exp.DType.TIMESTAMPNTZ: \"TIMESTAMPX\",'"
+  ],
+  "labeller": "pytest"
+ },
+ "sdv3": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/typing/tsql.py:18 'if this.is_type(exp.DType.SMALLMONEY):' -> 'if not this.is_type(exp.DType.SMALLMONEY):'"
+  ],
+  "labeller": "pytest"
+ },
+ "sn5b": {
+  "kind": "multi",
+  "desc": [
+   "sqlglot/transforms.py:449 comment",
+   "sqlglot/parsers/oracle.py:315 comment",
+   "tests/fixtures/partial.sql:3 'SELECT a +' -> 'SELECT a x +'"
+  ],
+  "labeller": "pytest"
+ },
+ "swqu": {
+  "kind": "docstring",
+  "desc": [
+   "sqlglot/generators/fabric.py:29 docstring"
+  ],
+  "labeller": "pytest"
+ },
+ "t3mv": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/parsers/presto.py:123 '\"BITWISE_OR\": binary_from_function(exp.BitwiseOr),' -> '\"BITWISE_ORX\": binary_from_function(exp.BitwiseOr),'"
+  ],
+  "labeller": "pytest"
+ },
+ "tbms": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/pushdown_projections.sql:291 'SELECT t.s AS s FROM (SELECT SUM(x.b) AS s FROM x ' -> 'SELECT t.s AS s FROM (SELECT SUM(x.b) AS s FROM x '"
+  ],
+  "labeller": "pytest"
+ },
+ "tdra": {
+  "kind": "comment",
+  "desc": [
+   "tests/fixtures/pretty.sql:382 fixture comment '# Kept for backwards compatibility'"
+  ],
+  "labeller": "pytest"
+ },
+ "tg87": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/optimizer/pushdown_predicates.py:107 'name = join.alias_or_name' -> 'pass'"
+  ],
+  "labeller": "pytest"
+ },
+ "tqk3": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/eliminate_joins.sql:487 '    COUNT(*) AS b' -> '    COUNT(* AS b'"
+  ],
+  "labeller": "pytest"
+ },
+ "u8tu": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/qualify_tables.sql:14 'SELECT 1 FROM x.y.z AS z;' -> 'SELECT 1 1 FROM x.y.z AS z;'"
+  ],
+  "labeller": "pytest"
+ },
+ "us5f": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/executor/context.py:37 'if outer:' -> 'if not outer:'"
+  ],
+  "labeller": "pytest"
+ },
+ "utzh": {
+  "kind": "comment",
+  "desc": [
+   "sqlglot/expressions/properties.py:310 comment"
+  ],
+  "labeller": "pytest"
+ },
+ "v8ws": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/annotate_types.sql:13 '5.3;' -> '5.3; 0'"
+  ],
+  "labeller": "pytest"
+ },
+ "vb3h": {
+  "kind": "test",
+  "desc": [
+   "tests/dialects/test_dax.py:26 test literal 'Qty' -> ' ty'"
+  ],
+  "labeller": "pytest"
+ },
+ "vbpm": {
+  "kind": "multi",
+  "desc": [
+   "sqlglot/generators/hive.py:396 'exp.WeekOfYear: rename_func(\"WEEKOFYEAR\"),' -> 'exp.WeekOfYear: rename_func(\"WEEKOFYEARX\"),'",
+   "sqlglot/trie.py:32 'trie = {} if trie is None else trie' -> 'trie = {} if trie == None else trie'",
+   "sqlglot/optimizer/qualify_tables.py:67 comment"
+  ],
+  "labeller": "pytest"
+ },
+ "vfxf": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/dialects/redshift.py:41 'NUMERIC_ESCAPES = {\"0\": (8, 1, 3, 0o777)}' -> 'NUMERIC_ESCAPES = {\"0\": (8, 1, 4, 0o777)}'"
+  ],
+  "labeller": "pytest"
+ },
+ "vsm8": {
+  "kind": "comment",
+  "desc": [
+   "sqlglot/generators/spark2.py:187 comment"
+  ],
+  "labeller": "pytest"
+ },
+ "w47z": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/dialects/postgres.py:101 'HEREDOC_TAG_IS_IDENTIFIER = True' -> 'HEREDOC_TAG_IS_IDENTIFIER = False'"
+  ],
+  "labeller": "pytest"
+ },
+ "wnpn": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/dialects/spark2.py:13 'ALTER_TABLE_SUPPORTS_CASCADE = False' -> 'ALTER_TABLE_SUPPORTS_CASCADE = True'"
+  ],
+  "labeller": "pytest"
+ },
+ "wy8b": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/executor/python.py:207 'result = compare(value, row[0])' -> 'result = compare(value, row[1])'"
+  ],
+  "labeller": "pytest"
+ },
+ "x54b": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/generators/redshift.py:28 'LAST_DAY_SUPPORTS_DATE_PART = False' -> 'LAST_DAY_SUPPORTS_DATE_PART = True'"
+  ],
+  "labeller": "pytest"
+ },
+ "xb8k": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/normalize_identifiers.sql:9 'SELECT a FROM x;' -> 'SELECT a x FROM x;'"
+  ],
+  "labeller": "pytest"
+ },
+ "xf8q": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/optimize_joins.sql:7 'SELECT * FROM x CROSS JOIN y JOIN z ON x.a = z.a A' -> 'SELECT * FROM x NULL CROSS JOIN y JOIN z ON x.a = '"
+  ],
+  "labeller": "pytest"
+ },
+ "yr9g": {
+  "kind": "docstring",
+  "desc": [
+   "sqlglot/parsers/sqlite.py:158 docstring"
+  ],
+  "labeller": "pytest"
+ },
+ "z2jm": {
+  "kind": "syntax",
+  "desc": [
+   "sqlglot/executor/table.py:23 syntax"
+  ],
+  "labeller": "pytest"
+ },
+ "zah4": {
+  "kind": "comment",
+  "desc": [
+   "tests/fixtures/optimizer/canonicalize_internal_names.sql:127 fixture comment '# Kept for backwards compatibility'"
+  ],
+  "labeller": "pytest"
+ },
+ "zjwu": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/parsers/presto.py:48 'this=seq_get(args, 0),' -> 'this=seq_get(args, 1),'"
+  ],
+  "labeller": "pytest"
  }
 }

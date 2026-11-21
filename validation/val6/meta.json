@@ -400,5 +400,26 @@
    "tests/fixtures/optimizer/quote_identifiers.sql:31 'SELECT * FROM \"t\" AS \"dual\";' -> 'SELECT * x FROM \"t\" AS \"dual\";'"
   ],
   "labeller": "pytest"
+ },
+ "ya4s": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/expressions/dml.py:517 '\"returning\": False,' -> '\"returning\": True,'"
+  ],
+  "labeller": "pytest"
+ },
+ "ymsb": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/parsers/mysql.py:513 'if kind:' -> 'if not kind:'"
+  ],
+  "labeller": "pytest"
+ },
+ "zszx": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/pushdown_projections.sql:263 'SELECT t.a AS a FROM (SELECT 1 AS a, 2 AS c UNION ' -> 'SELECT t.a AS a FROM (SELECT 1 AS a, 2 AS c UNION '"
+  ],
+  "labeller": "pytest"
  }
 }
