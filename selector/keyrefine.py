@@ -178,6 +178,10 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
         holder, attr = key.split("\t", 1)
         if ":" not in holder or finder is None or not class_sites:
             return "state: " + holder + "." + attr + " changed"
+        if attr.startswith("_") and attr.endswith("_"):
+            # dunder/sunder state (an Enum's _value2member_map_, ...) is read by the
+            # machinery behind lookups like DType("INT"), not by name
+            return "state: " + holder + "." + attr + " changed"
         m = finder.runtime_attr_mask(holder, attr)
         if m is None:
             return f"state: {holder} not in the class map"
