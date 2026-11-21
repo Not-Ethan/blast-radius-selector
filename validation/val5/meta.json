@@ -1,0 +1,108 @@
+{
+ "3deg": {
+  "kind": "rename_module",
+  "desc": [
+   "rename sqlglot/optimizer/normalize_identifiers.py -> sqlglot/optimizer/normalize_identifiers_v2.py"
+  ],
+  "labeller": "pytest"
+ },
+ "3pfd": {
+  "kind": "dict_entry",
+  "desc": [
+   "dict/set entry sqlglot/dialects/singlestore.py:42 edited"
+  ],
+  "labeller": "pytest"
+ },
+ "3x4n": {
+  "kind": "docstring_or_annotation",
+  "desc": [
+   "dead code (unused local) sqlglot/executor/__init__.py:31"
+  ],
+  "labeller": "pytest"
+ },
+ "4ijb": {
+  "kind": "test_edit",
+  "desc": [
+   "test comment tests/test_transforms.py:299"
+  ],
+  "labeller": "pytest"
+ },
+ "4xuv": {
+  "kind": "delete_file",
+  "desc": [
+   "delete tests/dialects/test_sqlite.py"
+  ],
+  "labeller": "pytest"
+ },
+ "593v": {
+  "kind": "formatting",
+  "desc": [
+   "formatting sqlglot/generator.py:3663"
+  ],
+  "labeller": "pytest"
+ },
+ "63vj": {
+  "kind": "docstring_or_annotation",
+  "desc": [
+   "dead code (unused local) sqlglot/errors.py:104"
+  ],
+  "labeller": "pytest"
+ },
+ "77zv": {
+  "kind": "docstring_or_annotation",
+  "desc": [
+   "dead code (unused local) sqlglot/typing/hive.py:12"
+  ],
+  "labeller": "pytest"
+ },
+ "7j8y": {
+  "kind": "rename_module",
+  "desc": [
+   "rename sqlglot/generators/clickhouse.py -> sqlglot/generators/clickhouse_impl.py"
+  ],
+  "labeller": "pytest"
+ },
+ "b2xu": {
+  "kind": "test_edit",
+  "desc": [
+   "test literal tests/dialects/test_bigquery.py:3758"
+  ],
+  "labeller": "pytest"
+ },
+ "bagi": {
+  "kind": "new_fixture",
+  "desc": [
+   "new file tests/fixtures/optimizer/tpc-h/extra.sql"
+  ],
+  "labeller": "pytest"
+ },
+ "bbt8": {
+  "kind": "multi",
+  "desc": [
+   "dict/set entry sqlglot/parsers/spark2.py:80 edited",
+   "test comment tests/dialects/test_tsql.py:2995"
+  ],
+  "labeller": "pytest"
+ },
+ "bpzj": {
+  "kind": "fixture_noop",
+  "desc": [
+   "fixture inline comment tests/fixtures/optimizer/pushdown_predicates.sql:213"
+  ],
+  "labeller": "pytest"
+ },
+ "br9s": {
+  "kind": "move_test",
+  "desc": [
+   "rename tests/test_errors.py -> tests/moved_test_errors.py"
+  ],
+  "labeller": "pytest"
+ },
+ "c5ib": {
+  "kind": "new_fixture",
+  "desc": [
+   "new file tests/fixtures/optimizer/extra.sql"
+  ],
+  "labeller": "pytest"
+ }
+}

@@ -15,6 +15,8 @@ SETS = {
     "val1": (os.path.join(HERE, ".work/data/val1"), os.path.join(HERE, "validation/val1/answers.json")),
     "val2": (os.path.join(HERE, ".work/data/val2"), os.path.join(HERE, "validation/val2/answers.json")),
     "val4": (os.path.join(HERE, ".work/data/val4"), os.path.join(HERE, "validation/val4/answers.json")),
+    "val3": (os.path.join(HERE, ".work/data/val3"), os.path.join(HERE, "validation/val3/answers.json")),
+    "val5": (os.path.join(HERE, ".work/data/val5"), os.path.join(HERE, "validation/val5/answers.json")),
 }
 GROUP = {
     "blind-exp": "expensive test included (blind)",

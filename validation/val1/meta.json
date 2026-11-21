@@ -776,5 +776,115 @@
   "desc": [
    "sqlglot/generators/singlestore.py:1068 '\"preserve\",' -> '\"preserveX\",'"
   ]
+ },
+ "3c2c": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/parser.py:5186 'if not table and not is_db_reference:' -> 'if not table and is_db_reference:'"
+  ],
+  "labeller": "pytest"
+ },
+ "3dwj": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/tokens.py:362 '\"OUT\": TokenType.OUT,' -> '\"OUTX\": TokenType.OUT,'"
+  ],
+  "labeller": "pytest"
+ },
+ "3pfd": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/serde.py:53 'if node.type and node.type is not node:' -> 'if node.type or node.type is not node:'"
+  ],
+  "labeller": "pytest"
+ },
+ "5ges": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/optimizer/scope.py:427 'or not isinstance(ancestor.parent, exp.Select)' -> 'or isinstance(ancestor.parent, exp.Select)'"
+  ],
+  "labeller": "pytest"
+ },
+ "5hge": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/__init__.py:138 'read: DialectType = None,' -> 'read: DialectType = 0,'"
+  ],
+  "labeller": "pytest"
+ },
+ "5zf6": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/planner.py:161 'projections.append(exp.column(e.alias_or_name, step.name, qu' -> 'projections.append(exp.column(e.alias_or_name, step.name, qu'"
+  ],
+  "labeller": "pytest"
+ },
+ "6u2y": {
+  "kind": "multi",
+  "desc": [
+   "sqlglot/expressions/core.py:243 comment",
+   "tests/fixtures/optimizer/tpc-ds/tpc-ds.sql:4710 '                   WHERE  c.c_customer_sk = ss_cus' -> '       NULL             WHERE  c.c_customer_sk = s'"
+  ],
+  "labeller": "pytest"
+ },
+ "8nxp": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/__init__.py:168 'return exp.Block(expressions=result) if len(result) > 1 else' -> 'return exp.Block(expressions=result) if len(result) >= 1 els'"
+  ],
+  "labeller": "pytest"
+ },
+ "9s5y": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/dialects/dialect.py:1002 '\"DOW\": \"DAYOFWEEK\",' -> '\"DOWX\": \"DAYOFWEEK\",'"
+  ],
+  "labeller": "pytest"
+ },
+ "ebqg": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/parser.py:7045 'if self._match_text_seq(\"UNSIGNED\"):' -> 'if not self._match_text_seq(\"UNSIGNED\"):'"
+  ],
+  "labeller": "pytest"
+ },
+ "f373": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/parser.py:1392 '\"INHERITS\": lambda self: self.expression(' -> '\"INHERITSX\": lambda self: self.expression('"
+  ],
+  "labeller": "pytest"
+ },
+ "p8uh": {
+  "kind": "multi",
+  "desc": [
+   "tests/fixtures/optimizer/eliminate_subqueries.sql:32 fixture comment '# note: x'",
+   "tests/fixtures/optimizer/optimizer.sql:333 'JOIN `y` AS `y`' -> 'JOIN `y` x AS `y`'",
+   "sqlglot/typing/__init__.py:9 'if t.TYPE_CHECKING:' -> 'if not t.TYPE_CHECKING:'"
+  ],
+  "labeller": "pytest"
+ },
+ "qfj2": {
+  "kind": "multi",
+  "desc": [
+   "sqlglot/optimizer/simplify.py:1691 comment",
+   "tests/fixtures/optimizer/qualify_columns_ddl.sql:29 fixture comment '-- type: ignore'",
+   "sqlglot/parser.py:10534 'if self._match_text_seq(\"COLUMNS\", \"(\", advance=False):' -> 'if self._match_text_seq(\"COLUMNS\", \"(\", advance=True):'"
+  ],
+  "labeller": "pytest"
+ },
+ "wr8r": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/tokens.py:315 '\"FOR\": TokenType.FOR,' -> '\"FORX\": TokenType.FOR,'"
+  ],
+  "labeller": "pytest"
+ },
+ "yqxq": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/tokens.py:374 '\"PRIMARY KEY\": TokenType.PRIMARY_KEY,' -> '\"PRIMARY KEYX\": TokenType.PRIMARY_KEY,'"
+  ],
+  "labeller": "pytest"
  }
 }

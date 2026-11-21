@@ -82,7 +82,9 @@ def main():
             with open(dump, "w") as handle:
                 for plan in plans:
                     handle.write(json.dumps({"commit": plan.cid, "why": {str(k): v for k, v in plan.explain().items()},
-                                             "note": plan.note, "verify_cpu": getattr(plan, "verify_cpu", 0.0)}) + "\n")
+                                             "note": plan.note, "verify_cpu": getattr(plan, "verify_cpu", 0.0),
+                                             "verify_est": plan.verify_cpu_estimate,
+                                             "lite_rest_est": plan.lite_rest_cpu}) + "\n")
     except Exception as error:  # noqa: BLE001
         log(f"fatal: {error!r}; falling back to running everything")
         for cid in commits:

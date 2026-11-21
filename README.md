@@ -24,6 +24,11 @@ ones against the patched tree and keep only the ones that fail.**
    * at import time (class bodies, module level, decorators, default values):
      the statement and the names it binds, and for dict literals the entry keys.
    Edits that no longer compile are detected (syntax and compile-time errors).
+   Inside a function body, adding, removing or swapping `pass`, a bare constant, or a
+   store of a constant to a name the function mentions nowhere else (no read, no
+   parameter, no global/nonlocal, no closure, no locals()/frame introspection) is a
+   no-op; at the top of a function this can only change its `__doc__`, which nothing
+   in sqlglot or its tests reads.
 
 3. **Turn sites into candidate tests** (`selector/candidates.py`) using maps built
    from the pinned commit (`maps/`, see below):
@@ -34,7 +39,13 @@ ones against the patched tree and keep only the ones that fail.**
      narrowed to tests that **used the class** (instantiated it or a subclass, or
      entered one of their methods; a dialect and its tokenizer/parser/generator count
      as one family), then to tests that ran a line **mentioning a bound name** (or a
-     line that reads attributes by computed name and could match it). For dicts keyed
+     line that reads attributes by computed name and could match it). A line that
+     reads the changed class attribute only as `self.NAME` / `cls.NAME` (dialect
+     settings such as `JOIN_HINTS`, read in shared generator/parser methods) counts
+     only for tests that ran it with a receiver that is the changed class or a
+     subclass (*typed coverage*, `tools/trace_typed.py`: each test traced alone from a
+     fresh interpreter, recording the runtime class of `self`/`cls` and its MRO; a test
+     without a record for that line is kept). For dicts keyed
      by sqlglot classes (`TRANSFORMS = {exp.Foo: ...}`) only tests that built an
      `exp.Foo` remain; for dicts keyed by SQL text (`FUNCTIONS`, `KEYWORDS`,
      `*_PARSERS`, `*_MAPPING`) only tests whose source or fixtures contain the key;
@@ -145,7 +156,11 @@ tests/test_executor.py::TestExecutor::test_optimized_tpch,tests/test_optimizer.p
 tests/test_optimizer.py::TestOptimizer::test_tpch
 python tools/trace_cases.py <sqlglot checkout> maps/cases.json out/cases --tests $T
 python tools/trace_cases.py <sqlglot checkout> maps/cases.json out/cases --tests $T --measure
-python tools/augment_maps.py out/coverage_plain.json.gz out/cases maps/coverage.json.gz <scale>
+python tools/augment_maps.py out/coverage_plain.json.gz out/cases out/coverage_cases.json.gz <scale>
+# receiver classes of self.NAME / cls.NAME reads (the two 20-30 s tests are skipped: no record = kept)
+python tools/trace_typed.py <sqlglot checkout> tests.json out/typed.json \
+    --skip tests/test_parser.py::TestParser::test_max_nodes,tests/test_executor.py::TestExecutor::test_execute_tpcds
+python tools/add_typed.py out/coverage_cases.json.gz out/typed.json maps/coverage.json.gz
 ```
 
 `<scale>` is the measuring machine's CPU time divided by the recorded seconds for

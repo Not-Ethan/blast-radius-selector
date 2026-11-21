@@ -35,6 +35,10 @@ class Maps:
         # Per-case pseudo-tests (tools/augment_maps.py): test id -> {"outside": index,
         # "fixtures": {fixture: [index per case ordinal]}}. Pseudo ids are not real tests.
         self.cases = data.get("cases", {})
+        # Typed coverage (tools/trace_typed.py): file -> line -> {receiver class key:
+        # set index} for lines reading `self.NAME`/`cls.NAME`, and each receiver's MRO.
+        self.typed = data.get("typed", {})
+        self.typed_mro = {k: set(v) for k, v in data.get("typed_mro", {}).items()}
         # Tests that loop over fixture cases (tools/build_cases.py): id -> [(fixture, kind)]
         self.case_tests = {}
         self.case_counts = {}

@@ -360,7 +360,9 @@ class CandidateFinder:
                 return base & (usage | self._name_refs(names, rel, site.lines, ("object", "module", "instance")))
             cand = base & usage
             if names and not dunder:
-                cand &= self._name_refs(names, rel, site.lines, ("object",))
+                owner = f"{module}:{site.class_qual}"
+                cand &= self._name_refs(names, rel, site.lines, ("object",),
+                                        owner=owner if owner in maps.classes else None)
             if cand and site.dict_keys:
                 keyed = self._dict_key_usage(site.dict_keys, names, cand)
                 if keyed is not None:
@@ -594,7 +596,34 @@ class CandidateFinder:
             cache[rel] = self._read(rel) or b""
         return cache[rel]
 
-    def _name_refs(self, names, site_rel, site_lines, kinds, module=None) -> int:
+    def _typed_mask(self, py, line, owner) -> int:
+        """Tests that ran `line` (which reads the changed names only as self.NAME /
+        cls.NAME) with a receiver that is `owner` or a subclass, plus every test
+        that ran it without a typed record for it."""
+        maps = self.maps
+        ran = maps.func_mask(py, [line]) | maps.mod_mask(py, [line])
+        recorded = 0
+        hit = 0
+        for key, k in maps.typed[py][str(line)].items():
+            m = maps.mask(k)
+            recorded |= m
+            ancestors = maps.typed_mro.get(key)
+            if ancestors is None or owner in ancestors:
+                hit |= m
+        return (ran & ~recorded) | (ran & hit)
+
+    @staticmethod
+    def _only_attribute_reads(line, names) -> bool:
+        """The line mentions the names, and every mention is `self.NAME` or `cls.NAME`."""
+        mentioned = False
+        for name in names:
+            total = len(re.findall(r"\b" + re.escape(name) + r"\b", line))
+            if total and total != len(re.findall(r"\b(?:self|cls)\." + re.escape(name) + r"\b", line)):
+                return False
+            mentioned = mentioned or total > 0
+        return mentioned
+
+    def _name_refs(self, names, site_rel, site_lines, kinds, module=None, owner=None) -> int:
         maps = self.maps
         needles = [n.encode() for n in names]
         module_needles = None
@@ -632,6 +661,17 @@ class CandidateFinder:
                     hits.update((i - 1, i - 2, i - 3))
             if py == site_rel:
                 hits -= set(site_lines)
+            if owner is not None and maps.typed.get(py):
+                # A class attribute changed in class `owner`: a line that only reads
+                # it as self.NAME / cls.NAME sees the change only when the receiver
+                # is `owner` or a subclass (typed coverage); other lines as usual.
+                typed_lines = maps.typed[py]
+                text = raw.decode("utf-8", "replace").split("\n")
+                narrowed = {i for i in hits if str(i) in typed_lines and 0 < i <= len(text)
+                            and self._only_attribute_reads(text[i - 1], names)}
+                for i in narrowed:
+                    mask |= self._typed_mask(py, i, owner)
+                hits -= narrowed
             mask |= self._hits_mask(py, raw, hits)
         for rel, line, regex, kind in maps.dynamic:
             if kind not in kinds:

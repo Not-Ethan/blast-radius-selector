@@ -130,6 +130,7 @@ def main():
     tests = json.load(open(o.tests_json))["tests"]
     number_of = {t["id"]: t["number"] for t in tests}
     id_of = {t["number"]: t["id"] for t in tests}
+    seconds_by_id = {t["id"]: t["seconds"] for t in tests}
     by_file = {}
     for t in tests:
         by_file.setdefault(t["file"], set()).add(t["id"])
@@ -191,20 +192,43 @@ def main():
         build_overlay(overlay, repo, dict(files))
         args = []
         chosen = set(nodes) | set(spot)
+        missing = set()
         for f, ids in sorted(by_file.items()):
             sel = ids & chosen
             if not sel:
                 continue
-            if sel == ids:
-                args.append(f)
-            else:
-                args.extend(sorted(sel))
+            if not os.path.exists(os.path.join(overlay, f)):
+                # the patch deleted or moved this test file: pytest would abort the
+                # whole run on the missing path; its tests count as failing
+                missing |= sel
+                continue
+            # whole files only (the plugin deselects the rest): a single node id
+            # that no longer exists would make pytest run nothing at all
+            args.append(f)
         out = os.path.join(tmp_base, f"lab_{cid}.json")
         argfile = os.path.join(tmp_base, f"lab_{cid}.args")
         with open(argfile, "w") as handle:
             handle.write("\n".join(args))
+        with open(out + ".missing", "w") as handle:
+            json.dump(sorted(missing), handle)
+        if not args:
+            # nothing left to run (every chosen test's file is gone): never call
+            # pytest without arguments, it would run the whole directory
+            with open(out, "w") as handle:
+                json.dump({"failed": [], "collect_failed": [], "ran": 0, "exitstatus": 5}, handle)
+            return subprocess.Popen(["true"]), out, overlay, time.time(), open(os.devnull, "w")
         e = dict(env)
         e["BR_LABEL_OUT"] = out
+        # per-test limits: generous next to each test's recorded time, so a patch
+        # that makes every test hang does not cost the global limit per test
+        limits_path = os.path.join(tmp_base, f"lab_{cid}.limits")
+        with open(limits_path, "w") as handle:
+            json.dump({n: min(o.timeout, max(10.0, 5.0 * seconds_by_id.get(n, 1.0) + 5.0)) for n in chosen}, handle)
+        e["BR_LABEL_TIMEOUTS"] = limits_path
+        select_path = os.path.join(tmp_base, f"lab_{cid}.select")
+        with open(select_path, "w") as handle:
+            json.dump(sorted(chosen - missing), handle)
+        e["BR_LABEL_SELECT"] = select_path
         e["PYTHONPATH"] = overlay + os.pathsep + HERE
         log = open(os.path.join(tmp_base, f"lab_{cid}.log"), "w")
         cmd = [o.python, "-m", "pytest", "-p", "no:cacheprovider", "-p", "br_pytest_plugin", "-q", "-o",
@@ -233,7 +257,8 @@ def main():
                 detail[cid] = {"error": f"pytest exit {proc.returncode}, no result", "reasons": reasons}
                 print(f"{cid}: ERROR exit {proc.returncode}", file=sys.stderr)
             else:
-                failed = set(result["failed"])
+                failed = set(result["failed"]) | set(json.load(open(out + ".missing"))) \
+                    | set(result.get("not_collected", []))
                 for bad in result["collect_failed"]:
                     path = bad.split("::", 1)[0]
                     failed |= {n for n in by_file.get(path, ()) if n in set(nodes) | set(spot)}

@@ -21,6 +21,35 @@ COLLECT_FAILED = set()
 RAN = set()
 
 
+SELECTED = None
+COLLECTED = set()
+
+
+def pytest_collection_modifyitems(session, config, items):
+    """Keep only the node ids listed in BR_LABEL_SELECT (files are passed whole,
+    since one node id that no longer exists makes pytest run nothing), and apply
+    per-test timeouts from BR_LABEL_TIMEOUTS: a patch that makes every test hang
+    must not cost the global limit per test."""
+    global SELECTED
+    import pytest
+
+    select_path = os.environ.get("BR_LABEL_SELECT")
+    if select_path:
+        SELECTED = set(json.load(open(select_path)))
+        kept = [item for item in items if item.nodeid in SELECTED]
+        dropped = [item for item in items if item.nodeid not in SELECTED]
+        if dropped:
+            config.hook.pytest_deselected(items=dropped)
+        items[:] = kept
+    COLLECTED.update(item.nodeid for item in items)
+    path = os.environ.get("BR_LABEL_TIMEOUTS")
+    if path:
+        limits = json.load(open(path))
+        for item in items:
+            if item.nodeid in limits:
+                item.add_marker(pytest.mark.timeout(limits[item.nodeid]))
+
+
 def pytest_runtest_logreport(report):
     RAN.add(report.nodeid)
     if report.failed:
@@ -37,4 +66,5 @@ def pytest_sessionfinish(session, exitstatus):
     if out:
         with open(out, "w") as handle:
             json.dump({"failed": sorted(FAILED), "collect_failed": sorted(COLLECT_FAILED),
+                       "not_collected": sorted((SELECTED or set()) - COLLECTED),
                        "ran": len(RAN), "exitstatus": int(exitstatus)}, handle)

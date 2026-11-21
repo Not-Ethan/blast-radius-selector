@@ -109,6 +109,78 @@ def _is_docstring(node) -> bool:
     return isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
 
 
+def _is_string_expr(node) -> bool:
+    return isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
+
+
+def _constant_value(node) -> bool:
+    """An expression that evaluates without side effects and cannot raise."""
+    if isinstance(node, ast.Constant):
+        return True
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        return isinstance(node.operand, ast.Constant) and type(node.operand.value) in (int, float, complex)
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return all(_constant_value(e) for e in node.elts)
+    if isinstance(node, ast.Dict):
+        # keys must be hashable constants (a list key would raise)
+        return all(k is not None and isinstance(k, ast.Constant) for k in node.keys) \
+            and all(_constant_value(v) for v in node.values)
+    return False
+
+
+_INTROSPECTION = {"locals", "vars", "eval", "exec", "globals", "dir", "_getframe", "currentframe", "f_locals"}
+
+
+def _noop_statement(stmt, func, own) -> bool:
+    """Whether adding or removing `stmt` in the body of `func` (old tree) cannot
+    change behaviour: `pass`, a bare constant expression, or `NAME = <constant>`
+    where NAME is mentioned nowhere else in `func` (no read, no other store, no
+    parameter, no global/nonlocal, no nested scope using it; a local name the
+    function already uses elsewhere, or a builtin it calls, would change scoping)
+    and `func` does no frame or locals introspection. `own` is the statement
+    itself when it is part of `func` (a removal)."""
+    if isinstance(stmt, ast.Pass):
+        return True
+    if isinstance(stmt, ast.Expr):
+        return isinstance(stmt.value, ast.Constant)
+    if isinstance(stmt, ast.Assign):
+        if len(stmt.targets) != 1 or not isinstance(stmt.targets[0], ast.Name) or not _constant_value(stmt.value):
+            return False
+        name = stmt.targets[0].id
+    elif isinstance(stmt, ast.AnnAssign):
+        if not isinstance(stmt.target, ast.Name) or stmt.value is None or not stmt.simple \
+                or not _constant_value(stmt.value):
+            return False
+        name = stmt.target.id
+    else:
+        return False
+    skip = set(map(id, ast.walk(own))) if own is not None else set()
+    for node in ast.walk(func):
+        if id(node) in skip:
+            continue
+        if isinstance(node, ast.Name) and (node.id == name or node.id in _INTROSPECTION):
+            return False
+        if isinstance(node, ast.Attribute) and node.attr in _INTROSPECTION:
+            return False
+        if isinstance(node, ast.arg) and node.arg == name:
+            return False
+        if isinstance(node, (ast.Global, ast.Nonlocal)) and name in node.names:
+            return False
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node is not func and node.name == name:
+            return False
+        if isinstance(node, ast.alias) and (node.asname or node.name).split(".")[0] == name:
+            return False
+        if isinstance(node, (ast.ExceptHandler,)) and node.name == name:
+            return False
+        if isinstance(node, ast.MatchAs) and node.name == name:
+            return False
+        if isinstance(node, ast.MatchStar) and node.name == name:
+            return False
+        if isinstance(node, ast.MatchMapping) and node.rest == name:
+            return False
+    return True
+
+
 def _bound_names(node) -> set[str]:
     names: set[str] = set()
     targets: list = []
@@ -292,10 +364,13 @@ class _Differ:
                     self.removed(o, ctx, old_all, i1 + a1, parent)
                 self.inserted(news[b1:b2], old_all, i1 + a1, ctx, parent)
 
-    def removed(self, o, ctx, old_all=None, at=None, parent=None):
+    def removed(self, o, ctx, old_all=None, at=None, parent=None, allow_noop=True):
         if ctx.scope == "function":
             if _is_docstring(o) and old_all is not None and old_all and old_all[0] is o:
                 return  # a docstring is never executed
+            if allow_noop and ctx.func_nodes and not isinstance(ctx.func_nodes[-1], ast.Lambda) \
+                    and _noop_statement(o, ctx.func_nodes[-1], o):
+                return  # `pass`, a bare constant, or a store to a name nothing else uses
             self.add(ctx, "delete", _exec_span(o), detail=f"removed {type(o).__name__}")
         else:
             if _is_docstring(o) and old_all is not None and old_all and old_all[0] is o:
@@ -326,6 +401,14 @@ class _Differ:
         names: set[str] = set()
         for n in news:
             names |= _bound_names(n)
+        if ctx.scope == "function" and ctx.func_nodes and not isinstance(ctx.func_nodes[-1], ast.Lambda) \
+                and all(_noop_statement(n, ctx.func_nodes[-1], None) for n in news):
+            # `pass`, bare constants, or stores to names the function never mentions.
+            # At the top of a function body this can only change the function's
+            # __doc__, which nothing in sqlglot or its tests reads (checked on the
+            # pinned commit: only class docstrings are touched, in expressions/core.py;
+            # doctests are not collected by pytest), like a docstring removal.
+            return
         if ctx.scope != "function" and all(_is_docstring(n) for n in news) and at == 0:
             self.add(ctx, "docstring", set(), detail="docstring added")
             return
@@ -337,7 +420,11 @@ class _Differ:
         if self._segment(self.old_lines, o) == self._segment(self.new_lines, n):
             return
         if type(o) is not type(n):
-            self.removed(o, ctx)
+            # The removal site stands for the replacement too, so it may only be
+            # dropped when the replacement is itself a no-op statement.
+            new_noop = ctx.scope == "function" and ctx.func_nodes and not isinstance(ctx.func_nodes[-1], ast.Lambda) \
+                and _noop_statement(n, ctx.func_nodes[-1], None)
+            self.removed(o, ctx, allow_noop=bool(new_noop))
             if ctx.scope != "function":
                 self._check_compiles(n)
             return
@@ -352,6 +439,9 @@ class _Differ:
             return
         if dump(o) == dump(n):
             return  # formatting or comments only
+        if ctx.scope == "function" and ctx.func_nodes and not isinstance(ctx.func_nodes[-1], ast.Lambda) \
+                and _noop_statement(o, ctx.func_nodes[-1], o) and _noop_statement(n, ctx.func_nodes[-1], o):
+            return  # one dead store / `pass` / bare constant replaced by another
         if isinstance(o, ast.AnnAssign) and isinstance(n, ast.AnnAssign) and (ctx.scope == "function" or self.lazy_annotations):
             # Annotations of locals are never evaluated; with lazy annotations
             # neither are class/module ones (beyond a stored string).
