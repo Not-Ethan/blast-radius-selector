@@ -178,6 +178,15 @@ def _h(text: str) -> str:
 
 
 def _code_fp(code, depth):
+    hit = _MEMO.get(("code", id(code)))
+    if hit is not None and hit[0] is code:
+        return hit[1]
+    result = _code_fp_uncached(code, depth)
+    _MEMO[("code", id(code))] = (code, result, False)
+    return result
+
+
+def _code_fp_uncached(code, depth):
     consts = []
     for c in code.co_consts:
         consts.append(_code_fp(c, depth + 1) if isinstance(c, types.CodeType) else fp(c, depth + 1))
@@ -186,19 +195,39 @@ def _code_fp(code, depth):
 
 
 UNORDERED = [False]  # fingerprint lists/tuples as multisets (for values built from sets)
+# Memo of fingerprints within one fingerprinting process: (id, UNORDERED) -> (value,
+# fingerprint, whether a list/tuple of 2+ items was fingerprinted inside). The value is
+# kept so that its id cannot be reused by another object. Sound because fingerprinting
+# runs no sqlglot code, so nothing changes while it runs; the fingerprint of an object
+# does not depend on where it is reached (depth only bounds recursion).
+_MEMO: dict = {}
+SEQ = [0]  # count of ordered sequences of 2+ items fingerprinted (memo hits included)
 
 
 def fp(value, depth=0) -> str:
     """Deterministic fingerprint: equal fingerprints mean equal behaviour for the
     purpose of reading this value. Raises Unknown when it cannot tell."""
-    import enum
-    import functools
-    import re
-
     if depth > 64:
         raise Unknown("too deep")
     if value is None or isinstance(value, (bool, int, float, complex, str, bytes)):
         return f"{type(value).__name__}:{value!r}"
+    key = (id(value), UNORDERED[0])
+    hit = _MEMO.get(key)
+    if hit is not None and hit[0] is value:
+        if hit[2]:
+            SEQ[0] += 1
+        return hit[1]
+    before = SEQ[0]
+    result = _fp(value, depth)
+    _MEMO[key] = (value, result, SEQ[0] != before)
+    return result
+
+
+def _fp(value, depth) -> str:
+    import enum
+    import functools
+    import re
+
     import datetime
     import typing
 
@@ -250,6 +279,8 @@ def fp(value, depth=0) -> str:
     if isinstance(value, re.Pattern):
         return f"re:{value.pattern!r}:{value.flags}"
     if isinstance(value, (list, tuple)):
+        if len(value) > 1:
+            SEQ[0] += 1
         items = [fp(v, depth + 1) for v in value]
         return f"{type(value).__name__}:" + _h(repr(sorted(items) if UNORDERED[0] else items))
     if isinstance(value, (set, frozenset)):
@@ -289,6 +320,7 @@ def state_fingerprint(root_modules=("sqlglot",)) -> dict:
     import sys
 
     errors = {}
+    _MEMO.clear()
     for root in root_modules:
         package = importlib.import_module(root)
         for item in pkgutil.walk_packages(package.__path__, root + "."):
@@ -307,7 +339,10 @@ def state_fingerprint(root_modules=("sqlglot",)) -> dict:
                 ids = [key_id(k) for k in value]
                 if all(i is not None for i in ids) and len(set(ids)) == len(ids):
                     return {"d": {i: fp(v) for i, v in zip(ids, dict.values(value))}}
+            SEQ[0] = 0
             out = {"v": fp(value)}
+            if not SEQ[0]:  # no list/tuple of 2+ items inside: the multiset reading is the same
+                return out
             UNORDERED[0] = True
             try:
                 unordered = fp(value)
@@ -389,11 +424,16 @@ def changed_entries(pinned1: dict, pinned2: dict, patched: dict, changed_paths, 
     return out
 
 
-def state_changes(pinned1: dict, patched: dict, changed_paths, loop_leftover):
+def state_changes(pinned1: dict, patched: dict, changed_paths, loop_leftover, unstable=frozenset()):
     """Like changed_entries, but non-dict changes are returned instead of rejected:
     ({holder\tattr: changed keys} for dicts, {holder\tattr} for other values), or None
     for an import error, an attribute that appeared or disappeared, or a value that
-    could not be fingerprinted. Same order rules as changed_entries."""
+    could not be fingerprinted. A non-dict value counts as unchanged when its
+    fingerprint is equal, or, only for values whose order already differs between two
+    hash seeds on the pinned commit (`unstable`: built from a set, so tests cannot rely
+    on their order), when its order-insensitive fingerprint is equal. The patched tree
+    is fingerprinted under the same hash seed as pinned1, so set orders agree unless
+    the sets themselves changed."""
     if patched.get("import_errors") != pinned1.get("import_errors"):
         return None
     s1, p = pinned1["state"], patched["state"]
@@ -411,7 +451,8 @@ def state_changes(pinned1: dict, patched: dict, changed_paths, loop_leftover):
             if keys:
                 dicts[key] = keys
             continue
-        if "d" not in a and "d" not in b and a.get("o", a.get("v")) == b.get("o", b.get("v")):
+        if "d" not in a and "d" not in b and key in unstable \
+                and a.get("o", a.get("v")) == b.get("o", b.get("v")):
             continue
         base = key.split("\t", 1)[0].split(":", 1)[0].replace(".", "/")
         if "d" not in a and "d" not in b and loop_leftover(key) \

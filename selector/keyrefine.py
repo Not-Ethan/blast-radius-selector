@@ -20,7 +20,7 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-_PINNED: list = []  # [pinned1, pinned2] or [None] when unavailable
+_PINNED: list = []  # [pinned (seed 1), unstable keys] or [None, None] when unavailable
 _CODE = ("import sys, json\n"
          "sys.path.insert(0, {parent!r})\n"
          "from selector import keyrec\n"
@@ -96,7 +96,7 @@ def _pinned_from_file():
     try:
         with gzip.open(path, "rt") as handle:
             data = json.load(handle)
-        return [data["seed1"], data["seed2"]]
+        return [data["seed1"], frozenset(data["unstable"])]
     except Exception:  # noqa: BLE001
         return None
 
@@ -128,26 +128,27 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
     overlay = os.path.join(tmp, "keys_overlay")
     shutil.rmtree(overlay, ignore_errors=True)
     try:
-        build_overlay(overlay, root, files)
+        build_overlay(overlay, root, files, copy_dirs=())
     except Exception as error:  # noqa: BLE001
         return f"state: overlay failed ({error!r})"
     if not _PINNED:
         stored = _pinned_from_file()
         if stored is not None:
             _PINNED.extend(stored)
-    procs = {"patched": _start(overlay, 0)}
+    procs = {"patched": _start(overlay, 1)}
     if not _PINNED:
         procs["p1"] = _start(root, 1)
         procs["p2"] = _start(root, 2)
     results = {name: _finish(proc, timeout) for name, proc in procs.items()}
     shutil.rmtree(overlay, ignore_errors=True)
     if not _PINNED:
-        _PINNED.extend([results.get("p1"), results.get("p2")])
-    pinned1, patched = _PINNED[0], results["patched"]
-    if pinned1 is None or patched is None:
+        p1, p2 = results.get("p1"), results.get("p2")
+        _PINNED.extend([p1, _unstable(p1, p2) if p1 is not None and p2 is not None else None])
+    pinned1, unstable, patched = _PINNED[0], _PINNED[1], results["patched"]
+    if pinned1 is None or unstable is None or patched is None:
         return "state: fingerprint unavailable"
     changed_paths = {c.path for c in changes} | {c.old_path for c in changes if c.old_path}
-    res = state_changes(pinned1, patched, changed_paths, _loop_leftovers(root))
+    res = state_changes(pinned1, patched, changed_paths, _loop_leftovers(root), unstable)
     if res is None:
         return "state: unreadable change"
     dicts, others = res
@@ -210,13 +211,23 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
     return "state: " + ", ".join(notes)
 
 
+def _unstable(p1: dict, p2: dict) -> frozenset:
+    """Non-dict values whose fingerprint differs between the two hash seeds on the
+    pinned commit (their order comes from a set)."""
+    s1, s2 = p1["state"], p2["state"]
+    return frozenset(k for k in set(s1) | set(s2)
+                     if s1.get(k) != s2.get(k) and "v" in (s1.get(k) or {}) and "v" in (s2.get(k) or {}))
+
+
 def build_pinned(root: str, out: str) -> None:
-    """Fingerprint the pinned tree under two hash seeds and store both (run when the
-    image is built, so a run only fingerprints patched trees)."""
+    """Fingerprint the pinned tree under two hash seeds; store the first and the
+    values whose order depends on the seed (run when the image is built, so a run only
+    fingerprints patched trees)."""
     import gzip
 
     results = [_finish(proc, 600) for proc in (_start(root, 1), _start(root, 2))]
     if any(r is None for r in results):
         raise SystemExit("pinned fingerprint failed")
+    unstable = _unstable(results[0], results[1])
     with gzip.open(out, "wt", compresslevel=9) as handle:
-        json.dump({"seed1": results[0], "seed2": results[1]}, handle)
+        json.dump({"seed1": results[0], "unstable": sorted(unstable)}, handle)

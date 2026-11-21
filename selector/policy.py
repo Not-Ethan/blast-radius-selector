@@ -331,22 +331,49 @@ def case_full_costs(maps, node):
     return outside + warm, {k: max(0.0, m - warm) for k, m in enumerate(marginal)}
 
 
-STATE_CHECK_CPU = float(os.environ.get("BR_STATE_CHECK_CPU", "1.4"))  # local CPU s of one fingerprint run
+STATE_CHECK_CPU = float(os.environ.get("BR_STATE_CHECK_CPU", "0.8"))  # CPU s of one patched fingerprint
 
 
-def state_check_worthwhile(found, maps, map_to_number, seconds_of) -> bool:
-    """Run the state comparison (selector/keyrefine.py) only when it can save more
-    than it costs: including the import-time candidates it may narrow must cost more
-    (2 s for a worker plus their recorded seconds spread over 8 workers, a lower bound
-    on packing them) than the comparison's CPU at the planner's CPU scale."""
-    imp = 0
+def state_check_worthwhile(found, maps, map_to_number, seconds_of, log=None) -> bool:
+    """Run the state comparison (selector/keyrefine.py) only when it can save more than
+    it costs. It can only remove tests that nothing but the narrowable import-time
+    sites select; the saving is at most what including them costs: the packed cost of
+    all candidates minus the packed cost without them (an over-estimate, since
+    verification may handle them more cheaply and the comparison keeps their real
+    readers). Skipping the comparison only keeps the wider masks, so it never loses
+    soundness."""
+    narrow = keep = 0
     for f in found.files:
-        imp |= f.imp
-    tests = [map_to_number[i] for i in maps.tests_of(imp) if i < len(map_to_number) and map_to_number[i] is not None]
-    if not tests:
+        sites = set(getattr(f, "keyrec_sites", ())) | set(getattr(f, "modrec_sites", {})) \
+            | set(getattr(f, "classrec_sites", ()))
+        for j in getattr(f, "imp_sites", ()):
+            if j in sites:
+                narrow |= f.site_masks[j]
+            else:
+                keep |= f.site_masks[j]
+        keep |= f.certain | f.func | f.data | f.pydata | f.other
+    removable = narrow & ~keep
+    if not removable:
         return False
-    worth = 2.0 + sum(seconds_of.get(n, 0.0) for n in tests) / 8.0
-    return worth > STATE_CHECK_CPU * CPU_SCALE
+
+    def numbers(mask):
+        return [map_to_number[i] for i in maps.tests_of(mask)
+                if i < len(map_to_number) and map_to_number[i] is not None]
+
+    ms_of = {n: int(seconds_of[n] * 1000 + 0.5) for n in seconds_of}
+    everything = numbers(narrow | keep)
+    rest = numbers(keep & ~removable)
+    blind = (pack(everything, ms_of, fast=True)[1] - pack(rest, ms_of, fast=True)[1]) / 1000.0
+    # The planner can also verify them instead (their CPU); tests the patch really
+    # breaks stay candidates after narrowing, so the saving is about the cheaper of
+    # the two for the passing ones.
+    verify = sum(cpu_estimate(maps, i, seconds_of.get(map_to_number[i], 0.0))
+                 for i in maps.tests_of(removable) if i < len(map_to_number) and map_to_number[i] is not None)
+    saving = min(blind, verify)
+    if log is not None:
+        log(f"state comparison: may save {saving:.2f}s (blind {blind:.2f}, verify {verify:.2f}) "
+            f"for {STATE_CHECK_CPU * CPU_SCALE:.2f}s CPU")
+    return saving > STATE_CHECK_CPU * CPU_SCALE
 
 
 def restricted_estimate(maps, node, need, full_est) -> float:
