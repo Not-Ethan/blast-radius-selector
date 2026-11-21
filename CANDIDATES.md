@@ -85,3 +85,40 @@ fail anyway) and on val1 cost +84 s local CPU for -21.9 s simulated, so the scal
 The remaining practice-like excess (val2, uniform file choice like the official
 generator) is dominated by TPC-DS execution included when an optimizer edit is run by
 most TPC-DS cases (9scn, g7wf, gzdj: 68 of val2's 107 s); that is the next target.
+
+## M3 — TPC-DS execution verified by comparing optimizer outputs
+
+Commit: **4cf2213** (branch br-opt). Builds on M2. Docker re-run on exactly this tree.
+
+What changed: when every reason `test_execute_tpcds` is a candidate only reaches code
+its cases run inside `optimize()` (coverage outside `optimize()` traced per case at
+build time), the verifier runs the affected cases only up to the end of `optimize()`
+and compares fingerprints of the call's input, output and input-after-call with the
+ones recorded at the pinned commit (recorded under two hash seeds and once with all
+cases in one process: identical for all 99 cases). Equal: the test cannot fail.
+Different: run those cases in full when that is cheap, otherwise include the test.
+Typical cost: ~0.2 s warm-up + ~0.1 s per case (map units), e.g. 5.6 s for all 57
+executed cases, instead of ~36 s to execute them.
+
+| set | M2 sim | M3 sim | misses | M3 local CPU (M2) |
+| --- | ---: | ---: | ---: | ---: |
+| kit sample (30) | 106.3 | 106.3 | 0 | 27.0 (17.0) |
+| val1 (141) | 690.4 | 690.4 | 0 | 127.3 (115.9) |
+| val2 (68) | 276.6 | **242.1** | 0 | 83.5 (59.8) |
+| val4 (36) | 106.6 | **87.0** | 0 | 88.9 (101.9) |
+| val5 (46 labelled) | 151.1 | 151.1 | 0 | 10.0 |
+| TPC-DS check set (28 commits from all sets) | 509.8 | 455.7 | 0 | |
+
+Docker, scorer flags, emulated amd64, kit sample: valid, 0 misses, finished within the
+deadline (132 s wall emulated; 3 verifications killed by emulation slowness as before).
+
+Expected on practice: helps whenever an optimizer edit reaches most TPC-DS cases and
+does not break execution (val2's 9scn and g7wf: 25.5 s -> 9.1 s and 7.4 s). Cost: one
+stage check (~4 s on the scorer at the observed CPU ratio) when such an edit does
+break TPC-DS (the sample's 2jrq: +8.6 s local CPU, simulated unchanged).
+Risk: relies on code outside optimize() behaving identically when optimize() returns
+an identical tree (it is deterministic code fed identical inputs); residual gap as for
+all coverage-based selection: state shared across cases inside one process.
+
+CPU scale: also tried 0.7 with M3 on val2: -7.7 s simulated, +14.1 s local CPU, i.e.
+break-even at a 0.5 scorer/local CPU ratio, so the scale stays at 1.0.
