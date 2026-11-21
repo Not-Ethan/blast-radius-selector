@@ -82,6 +82,7 @@ class Plan:
     import_check: bool = False  # the changed modules must be imported to rule out import-time errors
     import_ok: bool = False  # that import check ran
     note: str = ""
+    est: float | None = None  # the planner's expected cost of the chosen option (None: certain tests only)
 
     def final_tests(self) -> set[int]:
         chosen = set(self.include)
@@ -331,50 +332,103 @@ def case_full_costs(maps, node):
     return outside + warm, {k: max(0.0, m - warm) for k, m in enumerate(marginal)}
 
 
-STATE_CHECK_CPU = float(os.environ.get("BR_STATE_CHECK_CPU", "0.8"))  # CPU s of one patched fingerprint
+STATE_CHECK_CPU = float(os.environ.get("BR_STATE_CHECK_CPU", "0.65"))  # local CPU s of one comparison (0.60-0.70 measured)
+# Scorer CPU per local CPU second for this work: practice M13 -> M17 cost +9.4 s of
+# scorer CPU for about +5 s of local comparison CPU per 40 official-style commits.
+STATE_CPU_SCALE = float(os.environ.get("BR_STATE_CPU_SCALE", "1.9"))
 
 
-def state_check_worthwhile(found, maps, map_to_number, seconds_of, log=None) -> bool:
-    """Run the state comparison (selector/keyrefine.py) only when it can save more than
-    it costs. It can only remove tests that nothing but the narrowable import-time
-    sites select; the saving is at most what including them costs: the packed cost of
-    all candidates minus the packed cost without them (an over-estimate, since
-    verification may handle them more cheaply and the comparison keeps their real
-    readers). Skipping the comparison only keeps the wider masks, so it never loses
-    soundness."""
-    narrow = keep = 0
+def _optimistic_masks(found, maps, finder) -> dict:
+    """{(report, site index): mask} the state comparison would leave if it confirms
+    that only the edited value changed: key records of the edited keys (plus
+    enumerators and tests without a record), the module sites' record alternative, the
+    runtime readers of the assigned class attributes. Sites without an estimate are
+    left out (their masks stay as they are)."""
+    rec = getattr(maps, "keyrec", None) or {}
+    lookups = rec.get("lookups", {})
+    holders = set(rec.get("holders", ())) - set(rec.get("unrecordable", ()))
+    untraced = maps.all_mask & ~maps.mask(rec.get("traced"))
+    out = {}
     for f in found.files:
-        sites = set(getattr(f, "keyrec_sites", ())) | set(getattr(f, "modrec_sites", {})) \
-            | set(getattr(f, "classrec_sites", ()))
-        for j in getattr(f, "imp_sites", ()):
-            if j in sites:
-                narrow |= f.site_masks[j]
-            else:
-                keep |= f.site_masks[j]
-        keep |= f.certain | f.func | f.data | f.pydata | f.other
-    removable = narrow & ~keep
-    if not removable:
+        for i, (holder, keys) in getattr(f, "keyrec_sites", {}).items():
+            if holder not in holders:
+                continue
+            by_key = lookups.get(holder, {})
+            m = maps.mask(by_key.get("*")) | untraced
+            ok = True
+            for desc in keys:
+                if desc[0] == "str":
+                    m |= maps.mask(by_key.get(desc[1]))
+                elif desc[0] in ("attr", "name"):
+                    name = desc[1]
+                    for k in by_key:
+                        if (k.startswith("enum:") and k.endswith("." + name)) or \
+                                (k.startswith("class:") and (k.endswith(":" + name) or k.endswith("." + name))):
+                            m |= maps.mask(by_key[k])
+                else:
+                    ok = False
+                    break
+            if ok:
+                out[(id(f), i)] = (f, f.site_masks[i] & m)
+        for i, (alt, _group) in getattr(f, "modrec_sites", {}).items():
+            if (id(f), i) not in out:
+                out[(id(f), i)] = (f, f.site_masks[i] & alt)
+        if finder is not None:
+            for i, (holder, names) in getattr(f, "classrec_sites", {}).items():
+                if (id(f), i) in out:
+                    continue
+                m = 0
+                for name in names:
+                    r = finder.runtime_attr_mask(holder, name)
+                    if r is None:
+                        m = None
+                        break
+                    m |= r
+                if m is not None:
+                    out[(id(f), i)] = (f, f.site_masks[i] & m)
+    return out
+
+
+def state_check_worthwhile(cid, changes, found, maps, map_to_number, seconds_of, unknown_numbers, finder=None,
+                           log=None) -> bool:
+    """Run the state comparison (selector/keyrefine.py) only when it pays: plan the
+    commit as it stands and with the masks a confirming comparison would leave
+    (computed here without fingerprints), and require the planner's expected cost to
+    drop by more than the comparison's scorer CPU. Skipping only keeps the wider
+    masks, so it never loses soundness; the comparison itself still decides what is
+    narrowed."""
+    optimistic = _optimistic_masks(found, maps, finder)
+    if not optimistic:
         return False
-
-    def numbers(mask):
-        return [map_to_number[i] for i in maps.tests_of(mask)
-                if i < len(map_to_number) and map_to_number[i] is not None]
-
     ms_of = {n: int(seconds_of[n] * 1000 + 0.5) for n in seconds_of}
-    everything = numbers(narrow | keep)
-    rest = numbers(keep & ~removable)
-    blind = (pack(everything, ms_of, fast=True)[1] - pack(rest, ms_of, fast=True)[1]) / 1000.0
-    # The planner can also verify them instead (their CPU); tests the patch really
-    # breaks stay candidates after narrowing, so the saving is about the cheaper of
-    # the two for the passing ones.
-    verify = sum(cpu_estimate(maps, i, seconds_of.get(map_to_number[i], 0.0))
-                 for i in maps.tests_of(removable) if i < len(map_to_number) and map_to_number[i] is not None)
-    saving = min(blind, verify)
-    if log is not None:
-        log(f"state comparison: may save {saving:.2f}s (blind {blind:.2f}, verify {verify:.2f}) "
-            f"for {STATE_CHECK_CPU * CPU_SCALE:.2f}s CPU")
-    return saving > STATE_CHECK_CPU * CPU_SCALE
 
+    def planned() -> float:
+        plan = plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_numbers)
+        if plan.est is not None:
+            return plan.est
+        return pack(sorted(plan.include), ms_of, fast=True)[1] / 1000.0
+
+    now = planned()
+    saved = [(f, list(f.site_masks), f.imp) for f in found.files]
+    try:
+        for (fid, i), (f, mask) in optimistic.items():
+            f.site_masks[i] = mask
+        for f in found.files:
+            if any(fid == id(f) for fid, _ in optimistic):
+                imp = 0
+                for j in getattr(f, "imp_sites", []):
+                    imp |= f.site_masks[j]
+                f.imp = imp
+        after = planned()
+    finally:
+        for f, masks, imp in saved:
+            f.site_masks[:] = masks
+            f.imp = imp
+    threshold = STATE_CHECK_CPU * STATE_CPU_SCALE
+    if log is not None:
+        log(f"{cid}: state comparison would save {now - after:.2f}s ({now:.2f} -> {after:.2f}) "
+            f"for {threshold:.2f}s scorer CPU")
+    return now - after > threshold
 
 def restricted_estimate(maps, node, need, full_est) -> float:
     """CPU of a run restricted to `need`: the code outside the loops plus each
@@ -606,6 +660,7 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
             scored.append((cost, name, blind, verify, cpu))
     scored.sort(key=lambda x: x[0])
     cost, name, blind, verify, cpu = scored[0]
+    plan.est = cost
     summary = ", ".join(f"{n}={c:.2f}" for c, n, *_ in scored)
     plan.include |= blind
     if not verify:

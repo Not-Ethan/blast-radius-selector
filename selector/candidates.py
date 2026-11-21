@@ -43,10 +43,10 @@ class FileReport:
     # indexes into site_masks: import-time sites, and those that edit entries of a
     # string-keyed dict (selector/keyrefine.py may narrow them)
     imp_sites: list = field(default_factory=list)
-    keyrec_sites: list = field(default_factory=list)
+    keyrec_sites: dict = field(default_factory=dict)  # index -> (dict holder, changed key descriptors)
     # class-body assignments whose readers keyrefine can re-derive from the state
     # fingerprints (selector/keyrefine.py, runtime_attr_mask)
-    classrec_sites: list = field(default_factory=list)
+    classrec_sites: dict = field(default_factory=dict)  # index -> (class key, assigned names)
     # index into site_masks -> (narrower mask, {(module, name)} bindings it may change):
     # a module-level value edit whose runtime readers through module objects are taken
     # from the build-time records; keyrefine applies it when the state fingerprint shows
@@ -346,9 +346,14 @@ class CandidateFinder:
                 if site.scope == "class" and site.kind == "stmt" and site.names \
                         and not any(n.startswith("__") and n.endswith("__") for n in site.names) \
                         and getattr(site, "same_binding", False):
-                    report.classrec_sites.append(len(report.site_masks))
+                    report.classrec_sites[len(report.site_masks)] = (f"{module}:{site.class_qual}", tuple(sorted(site.names)))
                 if site.dict_keys and site.kind != "docstring" and getattr(site, "dict_order_same", False):
-                    report.keyrec_sites.append(len(report.site_masks))
+                    holder = None
+                    if site.names and len(site.names) == 1:
+                        name = next(iter(site.names))
+                        holder = f"{module}:{site.class_qual}\t{name}" if site.scope == "class" and site.class_qual \
+                            else (f"{module}\t{name}" if site.scope == "module" else None)
+                    report.keyrec_sites[len(report.site_masks)] = (holder, tuple(site.dict_keys))
                 if not site.value_safe:
                     report.import_check = True
             if site.kind == "def-header" and site.scope == "function" and not site.lines:

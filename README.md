@@ -91,8 +91,12 @@ ones against the patched tree and keep only the ones that fail.**
      changed for every test that enumerated it. The imports executed at import time
      (importer, module, names) must be identical: tests import only part of sqlglot,
      so a patch that changes what gets imported, and registered, could change what a
-     test sees without changing the all-modules state. The comparison runs only when the tests it could
-     remove cost more to include or verify than its CPU (about 0.8 s).
+     test sees without changing the all-modules state. The comparison runs only when it pays: the commit
+     is planned twice, as it stands and with the masks a confirming comparison would
+     leave (key records of the edited keys, the module record alternative, the runtime
+     readers of the assigned attributes: computed without fingerprints), and the
+     planner's expected cost must drop by more than the comparison's scorer CPU (0.65 s
+     local x 1.9, the scorer/local ratio implied by practice M13 -> M17).
      For a module-level assignment that keeps the same names bound (only the value
      changed), `from module import NAME` lines are not reads in themselves: the
      importing module's later uses of `NAME` are, and modules that re-export the name

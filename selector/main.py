@@ -82,7 +82,8 @@ def main():
                 if not found.unknown and any(getattr(f, "keyrec_sites", None) or getattr(f, "modrec_sites", None)
                                              or getattr(f, "classrec_sites", None) for f in found.files) \
                         and time.monotonic() - START < total_limit * 0.3 \
-                        and policy.state_check_worthwhile(found, maps, map_to_number, seconds_of, log):
+                        and policy.state_check_worthwhile(cid, changes, found, maps, map_to_number, seconds_of,
+                                                     unknown_numbers, finder, log):
                     try:
                         # never let the fingerprints eat into the analysis budget
                         budget = START + total_limit * 0.4 - time.monotonic()
