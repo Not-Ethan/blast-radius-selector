@@ -38,6 +38,15 @@ SWAPS = [
     (r" is ", " == "), (r"\bNone\b", "0"), (r"\bbreak\b", "continue"), (r"\bmin\(", "max("),
     (r"\bmax\(", "min("), (r"\bany\(", "all("), (r"\ball\(", "any("),
 ]
+# The operators seen in the kit sample's code commits (--official): identity vs
+# equality, ==/!=, comparison boundaries, and/or, added/removed `not`, booleans,
+# +-1 on integers (also in class bodies and dict values), copy= flips.
+OFFICIAL_SWAPS = [
+    (r" == ", " != "), (r" != ", " == "), (r" < ", " <= "), (r" <= ", " < "), (r" > ", " >= "),
+    (r" >= ", " > "), (r" is not ", " is "), (r" is None", " == None"), (r" is not None", " != None"),
+    (r" is ", " == "), (r" and ", " or "), (r" or ", " and "), (r"\bnot ", ""), (r"\bif ", "if not "),
+    (r"\bTrue\b", "False"), (r"\bFalse\b", "True"), (r"copy=False", "copy=True"), (r"copy=True", "copy=False"),
+]
 NUM = re.compile(r"(?<![\w.])(\d+)(?![\w.])")
 STR = re.compile(r"\"([A-Za-z_ ]{2,30})\"")
 COMMENTS = ["# Cheap check first", "# Kept for backwards compatibility", "# TODO: revisit",
@@ -113,15 +122,17 @@ class Gen:
                 rel = None
                 continue
             options = []
-            for pat, rep in SWAPS:
+            official = getattr(self, "official", False)
+            for pat, rep in (OFFICIAL_SWAPS if official else SWAPS):
                 for m in re.finditer(pat, line):
                     options.append((m.start(), m.end(), rep))
             for m in NUM.finditer(line):
                 n = int(m.group(1))
                 options.append((m.start(), m.end(), str(n + self.rng.choice([1, -1]) if n > 0 else 1)))
-            for m in STR.finditer(line):
-                options.append((m.start(1), m.end(1), m.group(1) + "X"))
-            if self.rng.random() < 0.12 and not stripped.endswith((":", "(", "[", "{", ",")) and not stripped.startswith(("def ", "class ", "@", "return", "elif", "else", "except", "finally")):
+            if not official:
+                for m in STR.finditer(line):
+                    options.append((m.start(1), m.end(1), m.group(1) + "X"))
+            if not official and self.rng.random() < 0.12 and not stripped.endswith((":", "(", "[", "{", ",")) and not stripped.startswith(("def ", "class ", "@", "return", "elif", "else", "except", "finally")):
                 options.append(("delete", None, None))
             if not options:
                 rel = None
@@ -384,9 +395,15 @@ def main():
     seed = int(sys.argv[4]) if len(sys.argv) > 4 else 1
     rng = random.Random(seed)
     gen = Gen(repo, rng)
-    gen.uniform = "--uniform" in sys.argv
+    gen.uniform = "--uniform" in sys.argv or "--official" in sys.argv
+    gen.official = "--official" in sys.argv
     os.makedirs(os.path.join(out, "commits"), exist_ok=True)
-    kinds = (["classlevel"] * 100) if "--classlevel" in sys.argv else (["code"] * 46 + ["fixture"] * 18 + ["comment"] * 10 + ["multi"] * 10 + ["test"] * 6
+    if gen.official:
+        # the kit sample's mix: 16 code, 8 fixture, 3 multi, 3 comment in 30
+        kinds = ["code"] * 16 + ["fixture"] * 8 + ["multi"] * 3 + ["comment"] * 3
+    else:
+        kinds = None
+    kinds = kinds or (["classlevel"] * 100) if "--classlevel" in sys.argv else kinds or (["code"] * 46 + ["fixture"] * 18 + ["comment"] * 10 + ["multi"] * 10 + ["test"] * 6
              + ["docstring"] * 4 + ["syntax"] * 2 + ["newfile"] * 2 + ["delete"] * 2)
     meta = {}
     alphabet = "abcdefghijkmnpqrstuvwxyz23456789"

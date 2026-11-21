@@ -95,6 +95,29 @@ EXPECTED: list = []
 OBSERVED: list = []
 
 
+def differing_cases(per_case, observed):
+    """Ordinals of the cases whose recorded calls were not observed unchanged.
+    Observed calls are matched to cases by the fingerprint of the call's input
+    (the parsed query), so a case whose optimize() raised (no record) or whose
+    input changed shows up as differing; cases sharing an input fingerprint are
+    judged together."""
+    by_input: dict = {}
+    for k, calls in per_case:
+        for call in calls:
+            by_input.setdefault(call[0], []).append((k, tuple(call)))
+    seen: dict = {}
+    for call in observed:
+        seen.setdefault(call[0], []).append(tuple(call))
+    differing = set()
+    for before, items in by_input.items():
+        if seen.get(before, []) != [c for _, c in items]:
+            differing.update(k for k, _ in items)
+    expected_inputs = set(by_input)
+    if any(call[0] not in expected_inputs for call in observed):
+        differing.update(k for k, _ in per_case)  # a call we cannot attribute
+    return sorted(differing)
+
+
 def install(module, attr="optimize"):
     """Wrap module.<attr> so each call records fingerprints of its input and
     output, compares them with EXPECTED in order, and then stops the case."""

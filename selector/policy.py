@@ -293,16 +293,34 @@ def _stage_check(maps, node, need, reasons, bit, data_hit):
         return None
     if not keep:
         return None
-    expected = []
+    per_case = []
     warm = info.get("warm", 0.0)
     cpu = warm  # each case was measured alone; run together they share one warm-up
     for k in keep:
         calls = info["calls"][k] if k < len(info["calls"]) else None
         if not calls:
             return None
-        expected.extend(tuple(c) for c in calls)
+        per_case.append((k, [tuple(c) for c in calls]))
         cpu += max(0.0, (info["cpu"][k] or 0.0) - warm)
-    return expected, cpu
+    return per_case, cpu
+
+
+def case_full_costs(maps, node):
+    """(warm-up, {ordinal: marginal CPU}) of running cases of `node` in full, from
+    the per-case measurements (as in restricted_estimate), or None."""
+    info = maps.cases.get(node)
+    if not info or len(info["fixtures"]) != 1:
+        return None
+    vcpu = maps.vcpu
+    outside = vcpu[info["outside"]]
+    (indexes,) = info["fixtures"].values()
+    whole = vcpu[maps.index[node]] if node in maps.index else None
+    per_case = [vcpu[i] for i in indexes]
+    if outside is None or whole is None or None in per_case or len(per_case) < 2:
+        return None
+    marginal = [max(0.0, v - outside) for v in per_case]
+    warm = max(0.0, (sum(marginal) - max(0.0, whole - outside)) / (len(marginal) - 1))
+    return outside + warm, {k: max(0.0, m - warm) for k, m in enumerate(marginal)}
 
 
 def restricted_estimate(maps, node, need, full_est) -> float:
@@ -394,18 +412,21 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
                 est[n] = reduced
                 plan.restrict[n] = need
             if STAGE and n in STAGE_CHECKS:
-                expected, stage_cpu = STAGE_CHECKS[n]
+                per_case, stage_cpu = STAGE_CHECKS[n]
                 stage_est = (stage_cpu + 0.05) * CPU_SCALE
-                # A different optimize() result does not mean the test fails: when
-                # running those cases in full is itself cheap enough, the verifier
-                # does that instead of including the test.
-                fallback = reduced <= max(EXPENSIVE_CPU, EXPENSIVE_SHARE * seconds_of[n])
-                if fallback:
-                    stage_est += STAGE_MISMATCH * reduced
+                # A different optimize() result does not mean the test fails: the
+                # cases whose result differs are then run in full, when that stays
+                # under what it is worth (otherwise the test is included).
+                cap = max(EXPENSIVE_CPU, EXPENSIVE_SHARE * seconds_of[n]) / CPU_SCALE
+                costs = case_full_costs(maps, id_of_number[n])
+                if costs is not None:
+                    stage_est += STAGE_MISMATCH * min(reduced, cap * CPU_SCALE)
                 if stage_est < est[n]:
                     est[n] = stage_est
                     plan.restrict[n] = need
-                    plan.stage[n] = (expected, fallback)
+                    plan.stage[n] = {"fixture": maps.stage[id_of_number[n]]["fixture"], "cases": per_case,
+                                     "cap": cap if costs is not None else 0.0,
+                                     "warm": costs[0] if costs else 0.0, "full": costs[1] if costs else {}}
 
     # Too costly to run here: more CPU than EXPENSIVE_CPU and more than
     # EXPENSIVE_SHARE of the test's recorded seconds (what including it costs).
@@ -581,8 +602,7 @@ def verify_groups(plan: Plan, numbers, id_of):
     # Stage-checked tests (selector/stage.py) run alone: the optimize() hook would
     # stop any other test that executes queries.
     staged = [n for n in numbers if n in plan.stage and n in plan.restrict]
-    stage_groups = [({fx: sorted(v) for fx, v in plan.restrict[n].items()}, [id_of[n]], plan.stage[n][0], plan.stage[n][1])
-                    for n in staged]
+    stage_groups = [({fx: sorted(v) for fx, v in plan.restrict[n].items()}, [id_of[n]], plan.stage[n]) for n in staged]
     numbers = [n for n in numbers if n not in staged]
     restricted = {n: plan.restrict[n] for n in numbers if n in plan.restrict}
     if not restricted:

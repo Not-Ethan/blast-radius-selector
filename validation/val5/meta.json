@@ -322,5 +322,131 @@
    "test comment tests/dialects/test_oracle.py:412"
   ],
   "labeller": "pytest"
+ },
+ "rf5d": {
+  "kind": "new_module",
+  "desc": [
+   "new file sqlglot/newdb.py"
+  ],
+  "labeller": "pytest"
+ },
+ "ruc7": {
+  "kind": "new_module",
+  "desc": [
+   "new file sqlglot/compat.py"
+  ],
+  "labeller": "pytest"
+ },
+ "rv83": {
+  "kind": "formatting",
+  "desc": [
+   "formatting sqlglot/transforms.py:533"
+  ],
+  "labeller": "pytest"
+ },
+ "s4id": {
+  "kind": "dict_entry",
+  "desc": [
+   "dict/set entry sqlglot/generators/sqlite.py:128 edited"
+  ],
+  "labeller": "pytest"
+ },
+ "s5kd": {
+  "kind": "new_fixture",
+  "desc": [
+   "new file tests/fixtures/extra.sql"
+  ],
+  "labeller": "pytest"
+ },
+ "t6as": {
+  "kind": "delete_file",
+  "desc": [
+   "delete sqlglot/generators/oracle.py"
+  ],
+  "labeller": "pytest"
+ },
+ "tgp9": {
+  "kind": "move_test",
+  "desc": [
+   "rename tests/dialects/test_teradata.py -> tests/dialects/moved_test_teradata.py"
+  ],
+  "labeller": "pytest"
+ },
+ "u9di": {
+  "kind": "fixture_noop",
+  "desc": [
+   "fixture inline comment tests/fixtures/optimizer/pushdown_cte_alias_columns.sql:20"
+  ],
+  "labeller": "pytest"
+ },
+ "ucne": {
+  "kind": "test_edit",
+  "desc": [
+   "test comment tests/dialects/test_dax.py:44"
+  ],
+  "labeller": "pytest"
+ },
+ "vfsz": {
+  "kind": "docstring_or_annotation",
+  "desc": [
+   "dead code (unused local) sqlglot/typing/postgres.py:12"
+  ],
+  "labeller": "pytest"
+ },
+ "via8": {
+  "kind": "new_fixture",
+  "desc": [
+   "new file tests/fixtures/optimizer/new_cases.sql"
+  ],
+  "labeller": "pytest"
+ },
+ "vmgn": {
+  "kind": "delete_file",
+  "desc": [
+   "delete sqlglot/expressions/string.py"
+  ],
+  "labeller": "pytest"
+ },
+ "w8gd": {
+  "kind": "new_test_file",
+  "desc": [
+   "new file tests/test_new.py"
+  ],
+  "labeller": "pytest"
+ },
+ "wer5": {
+  "kind": "new_test_file",
+  "desc": [
+   "new file tests/test_regression.py"
+  ],
+  "labeller": "pytest"
+ },
+ "wftd": {
+  "kind": "new_fixture",
+  "desc": [
+   "new file tests/fixtures/optimizer/tpc-h/new_cases.sql"
+  ],
+  "labeller": "pytest"
+ },
+ "wid7": {
+  "kind": "dict_entry",
+  "desc": [
+   "dict/set entry sqlglot/dialects/oracle.py:114 edited"
+  ],
+  "labeller": "pytest"
+ },
+ "xawx": {
+  "kind": "fixture_noop",
+  "desc": [
+   "fixture trailing space tests/fixtures/optimizer/normalize_identifiers.sql:49"
+  ],
+  "labeller": "pytest"
+ },
+ "zg26": {
+  "kind": "docstring_or_annotation",
+  "desc": [
+   "docstring sqlglot/dialects/clickhouse.py:59"
+  ],
+  "labeller": "pytest"
  }
 }

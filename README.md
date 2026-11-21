@@ -109,8 +109,10 @@ ones against the patched tree and keep only the ones that fail.**
    long as `optimize()` returns the same tree. The verifier then runs the affected
    cases only up to the end of `optimize()`, compares the fingerprints (node classes,
    args in order, types, comments, meta, parent links and shared nodes, walked without
-   calling sqlglot code) and stops each case; any difference, missing or extra call
-   includes the test.
+   calling sqlglot code) and stops each case. Calls are matched to cases by the
+   fingerprint of their input; cases whose output differs (or whose call is missing)
+   are then run in full, when that costs less than including the test; otherwise the
+   test is included.
 
    A test is restricted only when every reason it is a candidate is attributable to
    cases; otherwise (no per-case coverage, another data file it reads, a change that no

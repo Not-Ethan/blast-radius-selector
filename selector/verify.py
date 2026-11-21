@@ -339,12 +339,11 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
         result["stage"] = {}
         for group in (groups or [({}, tests)]):
             allowed, group_tests = group[0], group[1]
-            expected = group[2] if len(group) > 2 else None
-            fallback = bool(group[3]) if len(group) > 3 else False
+            spec = group[2] if len(group) > 2 else None
             if restricted:
                 cases.ALLOWED.clear()
                 cases.ALLOWED.update({os.path.normpath(f): frozenset(v) for f, v in allowed.items()})
-            if expected is None:
+            if spec is None:
                 group_failed, group_durations = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
             else:
                 # Stage check (selector/stage.py): stop each case after optimize()
@@ -352,21 +351,24 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
                 from selector import stage
 
                 executor = importlib.import_module("sqlglot.executor")
-                stage.EXPECTED[:] = [tuple(e) for e in expected]
+                stage.EXPECTED[:] = [tuple(c) for _, calls in spec["cases"] for c in calls]
                 stage.OBSERVED.clear()
                 stage.install(executor)
                 try:
                     _, group_durations = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
                 finally:
                     stage.uninstall(executor)
-                same = [tuple(o) for o in stage.OBSERVED] == stage.EXPECTED
+                differing = stage.differing_cases(spec["cases"], [tuple(o) for o in stage.OBSERVED])
+                cost = spec["warm"] + sum(spec["full"].get(k, spec["cap"] + 1.0) for k in differing)
+                rerun = bool(differing) and cost <= spec["cap"]
                 for node in group_tests:
-                    result["stage"][node] = {"same": same, "calls": len(stage.OBSERVED), "expected": len(stage.EXPECTED),
-                                             "fallback": bool(fallback and not same)}
-                if same:
+                    result["stage"][node] = {"differing": len(differing), "of": len(spec["cases"]),
+                                             "calls": len(stage.OBSERVED), "rerun": rerun}
+                if not differing:
                     group_failed = set()
-                elif fallback:
-                    # optimize() changed something: run the same cases in full
+                elif rerun:
+                    # optimize() returned something else for these cases: run them in full
+                    cases.ALLOWED[os.path.normpath(spec["fixture"])] = frozenset(differing)
                     group_failed, more = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
                     group_durations.update(more)
                 else:
