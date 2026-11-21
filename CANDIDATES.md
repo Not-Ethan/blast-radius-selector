@@ -18,7 +18,7 @@ Reference (first submission, 01c632d on the public repo): practice 195.8 s
 
 ## M1 — per-case restricted runs of fixture-loop tests + planner cost model
 
-Commit: see the line added with this milestone (`git log -1 -- blast-radius/CANDIDATES.md`).
+Commit: **7c3bd18** (branch br-opt). Docker re-run on exactly this tree: valid, 0 misses.
 
 What changed:
 * TPC-DS/TPC-H execution and optimizer tests (and every other test that loops over
