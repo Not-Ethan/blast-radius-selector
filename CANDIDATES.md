@@ -1,19 +1,21 @@
 
 # Candidate submissions (branch br-opt)
 
-> **Final entry if the cutoff were now: M19 (e73afb6)** — published (public d96e97c),
-> fresh-pull checked, practice 165.2 s (140.205 simulated, same as M17) with 0 missed.
-> The equal simulated time does not show that its state comparisons narrowed on the
-> scorer: on official-style sets they barely change the simulated cost (see "CPU
-> diagnosis" at the end).
+> **Final entry if the cutoff were now: M22 (52f588a)** — published (public 497a3d6),
+> fresh-pull checked, practice 160.4 s (140.205 simulated + 20.1-22.2 CPU), 0 missed.
 >
-> **Recommended next: M22 (52f588a)** — M21 plus a gate that runs the state
-> comparison only when planning with its likely result saves more than its scorer CPU
-> (val9/val6: 0 comparisons instead of 11/8, same simulated seconds). Every validation
-> set 0 misses; Docker-checked on its exact tree (`docker build --no-cache` 195 s;
-> valid, 0 misses, 96.839 s emulated, done at 93 s; M21 needed 126 s and got 121.616
-> because its comparisons ate the emulated time budget). Fallback option: M21
-> (55d8c1b), also Docker-checked. Known robustness issue: in the local emulated
+> **Recommended next: M23 (071cab9)** — M22 with the container-order fix (build-time
+> pinned fingerprints with shifted memory layouts, run one at a time). Decision-time
+> code is identical to M22. Validated inside the image: run-time comparisons of the
+> unmodified tree now report no change (before: 47 values differed and every
+> comparison fell back); in the M23 container run gbav's comparison narrowed (M22's
+> fell back). Docker check on the exact tree: valid, 0 misses; from-scratch build
+> 1249 s locally under heavy load (emulated; build_pinned alone 400 s emulated, about
+> 4 x 2 s natively), simulated 121.616 s because the machine was loaded by another
+> process and the emulated run hit its time budget (the light-probe second round of
+> 66ks was killed; M22's check on a quieter machine finished at 93 s with 96.839).
+> Expect M22's CPU; if the simulated cost falls below 140.205, the scorer was falling
+> back like the emulated container. Earlier note on that issue: in the local emulated
 > container (not natively, and evidently not on the scorer) the state comparisons fall
 > back because tuples/dicts built from sets of classes (address-hashed) are ordered
 > differently in the build-time pinned run and the run-time patched run, and the
