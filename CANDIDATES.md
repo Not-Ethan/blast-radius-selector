@@ -1,12 +1,10 @@
 
 # Candidate submissions (branch br-opt)
 
-> **Final entry if the cutoff were now: M14 (19278c8)** — the newest candidate with all
-> three soundness fixes (M11 SQL-keyed dicts, M12 module aliases, M13 class-name reads).
-> **Slot request (1:59 PM): please submit M11 alone (34467a3)** — it splits the +24.5 s
-> M8->M13 practice increase between the SQL-keyed-dict fix (M11) and the other two, which
-> decides which precise replacement to build first. Local proxies cannot split it: the kit
-> sample, val6 and val9 cost the same under M10 and M14 (96.8 / 193.2 / 242.5).
+> **Final entry if the cutoff were now: M15 (f72a919)** — all three soundness fixes
+> (M11-M13) plus a precise, still-sound replacement for M11's widening (key-level records of
+> string-keyed dicts). Recommended for the 1:59 / 2:59 slot instead of M11-alone if only one
+> slot is left: it tells us directly how much of the +24.5 s comes back.
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
@@ -518,7 +516,7 @@ Decision left to the coordinator: row 25 is the one rule whose evidence is stati
 environment (or flipping the default in `selector/policy.py`) turns it off with no other
 change.
 
-## M14 — class-name reads count only for the edited attribute (recommended next; includes M7-M13)
+## M14 — class-name reads count only for the edited attribute (superseded by M15)
 
 Commit: **19278c8** (branch br-opt). Builds on M13 (keeps all three soundness fixes).
 Docker re-run on exactly this tree (`git archive` of the commit): valid, 0 misses, done
@@ -543,3 +541,50 @@ keeps the attribute. Probe set val14: still 0 missed.
 | val9 (60 official-style) | 250.3 | 242.5 | 0 |
 | val10-13 probes | 0 missed | 0 missed | 0 |
 | val14 cross-class probes (6) | 0 missed | 0 missed | |
+
+## M15 — key-level records for string-keyed dict edits (recommended next; includes M7-M14)
+
+Commit: **f72a919** (branch br-opt; first version c335a50, same results). Docker re-run
+on exactly this tree (`git archive`): valid, 0 misses, done at 126 s of the emulated run;
+in the container the sample's 4d63 is narrowed by its key record ("keys: 1 entries of 1
+dicts").
+
+M11 made every edit of a `KEYWORDS`/`FUNCTIONS`/`*_PARSERS`/`*_MAPPING` entry keep every
+test that reads the dict; M13 then also kept everything reached through class-name
+copies (`Presto.TIME_MAPPING = MySQL.TIME_MAPPING`). M15 replaces that with runtime
+evidence:
+* build time (`tools/trace_keys.py`): after importing every sqlglot module, every
+  string-keyed dict held by a sqlglot class or module is swapped for a recording copy
+  (aliases stay aliases; the 3 dicts still reachable another way, e.g. through a dict
+  view, are "unrecordable" and never narrowed); each test runs alone and records the
+  keys it looked up and the dicts it enumerated (1620/1620 tests);
+* decision time (`selector/keyrefine.py`): the state of every sqlglot class and module
+  is fingerprinted for the pinned tree (two hash seeds, stored in the image at build
+  time) and for the patched tree (one subprocess per such commit, ~1.4 s local CPU), so
+  every dict entry the edit changes is known, including import-time derivations
+  (subclass copies, inverted mappings, tries, cross-class copies). Only if every
+  difference is an entry of a recorded dict are the site's candidates cut to the tests
+  that looked up a changed key or enumerated a changed dict, plus every test without a
+  record; anything else keeps M14's candidates.
+* Soundness argument: an entry edit can only change a test's run where the test reads
+  that entry (a recorded lookup), reads the dict whole (a recorded enumeration), or
+  uses state derived at import time (all fingerprinted: any non-dict difference stops
+  the narrowing). Edits that move entries are not narrowed (no order changes possible).
+
+| set | M8 | M13 (submitted: 162.5 sim on practice) | M14 | **M15** | misses |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| kit sample (30) | 104.8 | 96.8 | 96.8 | **96.8** | 0 |
+| val2 (120) | 581.4 | 608.0 | 583.5 | **538.5** | 0 |
+| val6 (60 official-style) | 193.2 | 193.2 | 193.2 | **193.2** | 0 |
+| val9 (60 official-style) | 292.0 | 250.3 | 242.5 | **242.5** | 0 |
+| val1 (199) | 1105.5 | 1225.4 | 1203.3 | **1077.5** | 0 |
+| val5 (64 new kinds) | 203.5 | 238.6 | 238.6 | **180.7** | 0 |
+| val8 (24 tokenizer settings) | 402.6 | 266.0 | 266.0 | **236.3** | 0 |
+| val10 (19 SQL-key probes) | 11 commits missed | 662.7 | 662.7 | **361.5** | 0 |
+| val11 / val14 (module-alias / cross-class probes) | misses | 169.4 / 130.1 | 169.4 / 130.1 | **140.7 / 94.9** | 0 |
+| val3, val4, val7, val12, val13, val15 | | | | unchanged from M14 | 0 |
+
+On every set M15 is at or below M14, and on val1/val2/val5 below even M10's unsound text
+rule. Not covered by M15: dicts keyed by enum members or classes (`TYPE_MAPPING`,
+`TRANSFORMS`; the latter has its own class rule), module-level name reads (M12) and
+non-dict class attributes copied across classes (M13) — next.
