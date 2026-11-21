@@ -238,13 +238,92 @@ class Kinds2:
         return git_diff(rel, self.read(rel), "".join(lines)), f"{rel}: trailing whitespace on {len(chosen)} lines"
 
 
+    # -- structural edits of classes and module globals (--more) ---------------
+    def _classes(self, rel):
+        return [n for n in self.tree(rel).body if isinstance(n, ast.ClassDef)]
+
+    def class_rename(self):
+        rel = self._code_file()
+        cls = self.pick(self._classes(rel))
+        lines = self.read(rel).splitlines(keepends=True)
+        line = lines[cls.lineno - 1]
+        if f"class {cls.name}" not in line:
+            raise Skip("class line")
+        lines[cls.lineno - 1] = line.replace(f"class {cls.name}", f"class {cls.name}Renamed", 1)
+        return git_diff(rel, self.read(rel), "".join(lines)), f"{rel}: rename class {cls.name} (uses unchanged)"
+
+    def class_base_change(self):
+        rel = self._code_file()
+        cands = [c for c in self._classes(rel) if c.bases and c.lineno == c.bases[-1].end_lineno]
+        cls = self.pick(cands)
+        base = cls.bases[0]
+        new = self._replace_segment(rel, base, "object") if len(cls.bases) == 1 else None
+        if new is None:
+            lines = self.read(rel).splitlines(keepends=True)
+            b = lines[cls.lineno - 1].encode("utf-8")
+            first, second = cls.bases[0], cls.bases[1]
+            lines[cls.lineno - 1] = (b[: first.col_offset] + b[second.col_offset:]).decode("utf-8")
+            new = "".join(lines)
+            desc = f"drops base {ast.unparse(first)}"
+        else:
+            desc = f"base {ast.unparse(base)} -> object"
+        return git_diff(rel, self.read(rel), new), f"{rel}: class {cls.name} {desc}"
+
+    def class_delete(self):
+        rel = self._code_file()
+        tree = self.tree(rel)
+        cands = [c for c in self._classes(rel) if len(tree.body) > 1]
+        cls = self.pick(cands)
+        first = min([d.lineno for d in cls.decorator_list] + [cls.lineno])
+        new = self._replace_lines(rel, first, cls.end_lineno, [])
+        return git_diff(rel, self.read(rel), new), f"{rel}: delete class {cls.name}"
+
+    def global_delete(self):
+        rel = self._code_file()
+        tree = self.tree(rel)
+        cands = [n for n in tree.body if isinstance(n, (ast.Assign, ast.AnnAssign)) and len(tree.body) > 1
+                 and not any(isinstance(t, ast.Name) and t.id.startswith("__")
+                             for t in (n.targets if isinstance(n, ast.Assign) else [n.target]))]
+        node = self.pick(cands)
+        new = self._replace_lines(rel, node.lineno, node.end_lineno, [])
+        return git_diff(rel, self.read(rel), new), f"{rel}: delete module-level `{ast.unparse(node)[:60]}`"
+
+    def class_attr_delete(self):
+        rel = self._code_file()
+        cands = [(c, n) for c in self._classes(rel) for n in c.body
+                 if isinstance(n, (ast.Assign, ast.AnnAssign)) and len(c.body) > 1]
+        cls, node = self.pick(cands)
+        new = self._replace_lines(rel, node.lineno, node.end_lineno, [])
+        return git_diff(rel, self.read(rel), new), f"{rel}: delete {cls.name} attribute `{ast.unparse(node)[:60]}`"
+
+    def raise_change(self):
+        rel = self._code_file()
+        cands = [n for n in ast.walk(self.tree(rel)) if isinstance(n, ast.Raise) and isinstance(n.exc, ast.Call)
+                 and isinstance(n.exc.func, ast.Name) and n.exc.func.lineno == n.exc.func.end_lineno]
+        node = self.pick(cands)
+        new_name = "RuntimeError" if node.exc.func.id != "RuntimeError" else "ValueError"
+        new = self._replace_segment(rel, node.exc.func, new_name)
+        return git_diff(rel, self.read(rel), new), f"{rel}:{node.lineno} raise {node.exc.func.id} -> {new_name}"
+
+    def property_to_method(self):
+        rel = self._code_file()
+        cands = [(n, c, d) for n, c, _ in self.defs(rel, ("class",)) for d in n.decorator_list
+                 if ast.unparse(d) == "property"]
+        node, cls, d = self.pick(cands)
+        new = self._replace_lines(rel, d.lineno, d.end_lineno, [])
+        return git_diff(rel, self.read(rel), new), f"{rel}: {cls.name}.{node.name} is no longer a property"
+
+
 KINDS = ["func_delete", "func_rename", "func_rename_everywhere", "default_change", "param_add", "param_remove",
          "decorator_add", "decorator_remove", "init_reexport", "add_test", "whitespace", "multi"]
+MORE = ["class_rename", "class_base_change", "class_delete", "global_delete", "class_attr_delete", "raise_change",
+        "property_to_method", "init_reexport", "func_rename_everywhere", "multi"]
 
 
 def main():
     repo, out, count = sys.argv[1], sys.argv[2], int(sys.argv[3])
-    seed = int(sys.argv[4]) if len(sys.argv) > 4 else 11
+    seed = int(sys.argv[4]) if len(sys.argv) > 4 and not sys.argv[4].startswith("--") else 11
+    kinds = MORE if "--more" in sys.argv else KINDS
     rng = random.Random(seed)
     g = Kinds2(repo, rng)
     os.makedirs(os.path.join(out, "commits"), exist_ok=True)
@@ -253,12 +332,14 @@ def main():
     n = attempts = 0
     while n < count and attempts < count * 50:
         attempts += 1
-        kind = KINDS[n % len(KINDS)] if n < len(KINDS) else rng.choice(KINDS)
+        kind = kinds[n % len(kinds)] if n < len(kinds) else rng.choice(kinds)
         try:
             if kind == "multi":
                 parts, descs, used = [], [], set()
-                for sub in rng.sample(["default_change", "param_add", "add_test", "decorator_remove", "whitespace",
-                                       "func_delete"], 2):
+                pool = (["class_attr_delete", "raise_change", "global_delete", "add_test", "default_change"]
+                        if kinds is MORE else
+                        ["default_change", "param_add", "add_test", "decorator_remove", "whitespace", "func_delete"])
+                for sub in rng.sample(pool, 2):
                     patch, desc = getattr(g, sub)()
                     paths = set(re.findall(r"diff --git a/(\S+)", patch))
                     if paths & used:

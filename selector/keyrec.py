@@ -319,17 +319,54 @@ def state_fingerprint(root_modules=("sqlglot",)) -> dict:
     import pkgutil
     import sys
 
+    import builtins
+    import importlib.util
+
     errors = {}
     _MEMO.clear()
-    for root in root_modules:
-        package = importlib.import_module(root)
-        for item in pkgutil.walk_packages(package.__path__, root + "."):
-            if item.name.endswith("__main__"):
-                continue
-            try:
-                importlib.import_module(item.name)
-            except Exception as error:  # noqa: BLE001
-                errors[item.name] = repr(error)
+    # Every import executed by sqlglot code while everything is imported (importer,
+    # target, fromlist). Tests import only part of sqlglot, so a patch that changes
+    # what gets imported (and registered) at import time could change what a test
+    # sees without changing this all-modules state; such patches are not narrowed.
+    edges = set()
+    prefixes = tuple(r + "." for r in root_modules)
+    real_import, real_import_module = builtins.__import__, importlib.import_module
+
+    def importer_ok(name):
+        return isinstance(name, str) and (name in root_modules or name.startswith(prefixes))
+
+    def recording_import(name, globals=None, locals=None, fromlist=(), level=0):
+        importer = (globals or {}).get("__name__")
+        if importer_ok(importer):
+            target = name
+            if level:
+                try:
+                    package = globals.get("__package__") or importer.rpartition(".")[0]
+                    target = importlib.util.resolve_name("." * level + name, package)
+                except Exception:  # noqa: BLE001
+                    target = f"?{level}:{name}"
+            edges.add(f"{importer}\t{target}\t{','.join(sorted(fromlist or ()))}")
+        return real_import(name, globals, locals, fromlist, level)
+
+    def recording_import_module(name, package=None):
+        importer = sys._getframe(1).f_globals.get("__name__")
+        if importer_ok(importer):
+            edges.add(f"{importer}\t{name}\t@{package or ''}")
+        return real_import_module(name, package)
+
+    builtins.__import__, importlib.import_module = recording_import, recording_import_module
+    try:
+        for root in root_modules:
+            package = importlib.import_module(root)
+            for item in pkgutil.walk_packages(package.__path__, root + "."):
+                if item.name.endswith("__main__"):
+                    continue
+                try:
+                    importlib.import_module(item.name)
+                except Exception as error:  # noqa: BLE001
+                    errors[item.name] = repr(error)
+    finally:
+        builtins.__import__, importlib.import_module = real_import, real_import_module
     out = {}
     seen_classes = set()
 
@@ -379,7 +416,7 @@ def state_fingerprint(root_modules=("sqlglot",)) -> dict:
                 visit_class(value)
                 continue
             out[f"{name}\t{attr}"] = entry(value)
-    return {"state": out, "import_errors": errors}
+    return {"state": out, "import_errors": errors, "imports": sorted(edges)}
 
 
 # -- decision time -------------------------------------------------------------
@@ -436,19 +473,25 @@ def state_changes(pinned1: dict, patched: dict, changed_paths, loop_leftover, un
     the sets themselves changed."""
     if patched.get("import_errors") != pinned1.get("import_errors"):
         return None
+    if patched.get("imports") != pinned1.get("imports"):
+        return None  # other imports run at import time: tests may see other state
     s1, p = pinned1["state"], patched["state"]
     dicts: dict = {}
     others: set = set()
     for key in set(s1) | set(p):
         a, b = s1.get(key), p.get(key)
-        if a == b:
+        if a == b and not ("d" in a and list(a["d"]) != list(b["d"])):  # == ignores dict order
             continue
         if a is None or b is None or "u" in a or "u" in b:
             return None
         if "d" in a and "d" in b:
             da, db = a["d"], b["d"]
             keys = {k for k in set(da) | set(db) if da.get(k) != db.get(k)}
-            if keys:
+            # The entries keep their dict's order (JSON objects keep insertion order):
+            # if the keys present in both are in another order, every reader that
+            # iterates the dict may see a difference (recorded as "*").
+            reordered = key not in unstable and [k for k in da if k in db] != [k for k in db if k in da]
+            if keys or reordered:
                 dicts[key] = keys
             continue
         if "d" not in a and "d" not in b and key in unstable \

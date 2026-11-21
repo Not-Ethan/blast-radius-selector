@@ -19,7 +19,8 @@ ones against the patched tree and keep only the ones that fail.**
    files are parsed and compared statement by statement. Comments and formatting never
    reach the AST, so comment-only edits disappear (unless a test reads that file as
    data, see below). Each real difference becomes a *site* in the old file:
-   * inside a function or lambda body: the statement (or compound-statement header)
+   * inside a function or lambda body (also a lambda inside an import-time dict,
+     list or comprehension, e.g. a `TRANSFORMS` entry): the statement (or compound-statement header)
      that changed, an inserted statement's neighbours, or a removed statement;
    * at import time (class bodies, module level, decorators, default values):
      the statement and the names it binds, and for dict literals the entry keys.
@@ -86,7 +87,11 @@ ones against the patched tree and keep only the ones that fail.**
      Values compare by fingerprint; the order-insensitive reading applies only to the
      few values whose order already differs between two hash seeds on the pinned
      commit (built from sets), and the patched tree is fingerprinted under the same
-     seed as the stored pinned run. The comparison runs only when the tests it could
+     seed as the stored pinned run. A dict whose common keys changed order counts as
+     changed for every test that enumerated it. The imports executed at import time
+     (importer, module, names) must be identical: tests import only part of sqlglot,
+     so a patch that changes what gets imported, and registered, could change what a
+     test sees without changing the all-modules state. The comparison runs only when the tests it could
      remove cost more to include or verify than its CPU (about 0.8 s).
      For a module-level assignment that keeps the same names bound (only the value
      changed), `from module import NAME` lines are not reads in themselves: the

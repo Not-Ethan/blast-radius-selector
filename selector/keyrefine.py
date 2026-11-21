@@ -212,11 +212,18 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
 
 
 def _unstable(p1: dict, p2: dict) -> frozenset:
-    """Non-dict values whose fingerprint differs between the two hash seeds on the
-    pinned commit (their order comes from a set)."""
+    """Values whose fingerprint (non-dict values) or key order (dicts) differs between
+    the two hash seeds on the pinned commit (their order comes from a set)."""
     s1, s2 = p1["state"], p2["state"]
-    return frozenset(k for k in set(s1) | set(s2)
-                     if s1.get(k) != s2.get(k) and "v" in (s1.get(k) or {}) and "v" in (s2.get(k) or {}))
+    out = set()
+    for k in set(s1) | set(s2):
+        a, b = s1.get(k) or {}, s2.get(k) or {}
+        if "v" in a and "v" in b and a != b:
+            out.add(k)
+        elif "d" in a and "d" in b and list(a["d"]) != list(b["d"]) \
+                and [x for x in a["d"] if x in b["d"]] != [x for x in b["d"] if x in a["d"]]:
+            out.add(k)
+    return frozenset(out)
 
 
 def build_pinned(root: str, out: str) -> None:
