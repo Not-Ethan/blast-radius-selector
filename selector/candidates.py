@@ -19,7 +19,6 @@ from . import tokcore
 
 PYTEST_CONFIG = {"pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml", "conftest.py"}
 # Class-level dicts whose string keys are SQL text (function names, keywords...).
-SQL_TEXT_DICT = re.compile(r"(FUNCTIONS|_PARSERS|KEYWORDS|_MAPPING)$")
 
 
 @dataclass
@@ -396,14 +395,15 @@ class CandidateFinder:
 
         * Every key a sqlglot class (TRANSFORMS = {exp.Foo: ...}): an entry keyed
           by a class is only consulted for instances of that class or subclasses.
-        * Every key a SQL word of a dict that maps SQL text (FUNCTIONS, KEYWORDS,
-          *_PARSERS, *_MAPPING): only tests whose SQL contains the word can look
-          it up: the test method's text, its file's non-test code, or a data file
-          it reads must contain the word (case-insensitive).
+
+        Dicts keyed by SQL text (FUNCTIONS, KEYWORDS, ...) are not narrowed: the SQL
+        a test runs is often built at runtime (f"CAST(x AS {t.value})" in
+        tests/dialects/test_mysql.py::test_types, DataType.build("int") inside the
+        library), so the test's text need not contain the key. (A rule that
+        required the word in the test's source or data files missed
+        test_mysql.py::test_types for a KEYWORDS "INT" edit, labelled with pytest.)
         """
         if keys and all(k[0] == "str" for k in keys):
-            if names and all(SQL_TEXT_DICT.search(n) for n in names):
-                return self._text_usage([k[1] for k in keys], within)
             return None
         if not hasattr(self, "_by_simple_name"):
             index = {}
@@ -422,60 +422,6 @@ class CandidateFinder:
                 if usage is None:
                     return None
                 mask |= usage
-        return mask
-
-    def _text_usage(self, words, within=None):
-        maps = self.maps
-        if within is None:
-            within = maps.all_mask
-        files = {maps.tests[i].split("::", 1)[0] for i in maps.tests_of(within)}
-        patterns = []
-        for word in words:
-            word = word.strip()
-            if len(word) < 3 or not re.search(r"[A-Za-z]", word):
-                return None  # too generic to search for
-            parts = [re.escape(p) for p in word.split()]
-            body = r"\s+".join(parts)
-            left = r"(?<![A-Za-z0-9_])" if re.match(r"\w", word) else ""
-            right = r"(?![A-Za-z0-9_])" if re.search(r"\w$", word) else ""
-            patterns.append(left + body + right)
-        regex = re.compile("|".join(patterns), re.IGNORECASE)
-        mask = 0
-        # Test files: a hit inside a test method selects that test; anywhere
-        # else in the file (helpers, module data) selects every test of the file.
-        for rel, spans in maps.test_spans.items():
-            if rel not in files:
-                continue
-            raw = self._source(rel)
-            if not raw:
-                continue
-            text = raw.decode("utf-8", "replace")
-            if not regex.search(text):
-                continue
-            for i, line in enumerate(text.split("\n"), start=1):
-                if not regex.search(line):
-                    continue
-                owner = None
-                for start, end, node in spans:
-                    if start <= i <= end:
-                        owner = node
-                        break
-                if owner is None:
-                    for _, _, node in spans:
-                        k = maps.index.get(node)
-                        if k is not None:
-                            mask |= 1 << k
-                else:
-                    k = maps.index.get(owner)
-                    if k is not None:
-                        mask |= 1 << k
-        # Data files tests read.
-        for rel, k in maps.opens.items():
-            if rel.endswith(".py") or not (maps.mask(k) & within):
-                continue
-            raw = self._source(rel)
-            if raw and regex.search(raw.decode("utf-8", "replace")):
-                mask |= maps.mask(k)
         return mask
 
     def _hits_mask(self, py, raw, hits) -> int:

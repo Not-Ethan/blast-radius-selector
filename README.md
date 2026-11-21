@@ -80,7 +80,8 @@ ones against the patched tree and keep only the ones that fail.**
      checked, every importer is included. For dicts keyed
      by sqlglot classes (`TRANSFORMS = {exp.Foo: ...}`) only tests that built an
      `exp.Foo` remain; for dicts keyed by SQL text (`FUNCTIONS`, `KEYWORDS`,
-     `*_PARSERS`, `*_MAPPING`) only tests whose source or fixtures contain the key;
+     `*_PARSERS`, `*_MAPPING`) only tests whose source or the data files they read
+     contain the key (compressed files searched decompressed);
    * data files (fixtures, `.csv.gz`, `sqlglotc/setup.py`, ...): tests that opened the
      file. `.sql` fixture edits that only touch empty or `--` lines are no-ops (the
      test helpers drop those lines);
