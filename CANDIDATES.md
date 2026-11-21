@@ -4,11 +4,14 @@
 > **Final entry if the cutoff were now: M17 (2963170)** — published, fresh-pull checked,
 > practice 166.2 s with 0 missed.
 >
-> **Recommended next: M19 (e73afb6)** — M17 plus the class-attribute replacement (M18),
-> half the state-comparison CPU with a cost gate, and a soundness fix for order-only
-> import-time changes that M17 also has (see M19). Docker-checked on its exact tree.
-> Once M19 is published, fresh-pull checked and scores 0 missed on practice, it should
-> replace M17 as the final entry.
+> **Do not submit M19 (e73afb6), M20 or M21: no candidate is recommended next right
+> now.** In the container (but not natively) every state comparison falls back because
+> `_CANONICALIZE_TYPES`, a tuple built from a set of classes, has a different order in
+> the build-time pinned run and the run-time patched run (class hashes are addresses;
+> the build's two seed runs happened to agree, so it was not marked seed-dependent).
+> Fallback is sound (wider masks, 0 misses in the Docker checks) but loses M17's
+> narrowing, so on the scorer M19-M21 would cost about M13's simulated seconds. Fix in
+> progress (M22: build-time runs with shifted memory layout).
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
@@ -720,3 +723,56 @@ cost roughly half that (not yet measured on the scorer).
 | val14 | 94.9 | 46.5 | 0 |
 | val15 | 169.9 | 169.9 | 0 |
 | val16 | 546.7 | 546.3 | 0 |
+
+## M20 — lambda bodies inside comprehensions are function-scope changes
+
+Commit: **2215534** (on M19). Not Docker-checked on its own (M21 builds on it and was).
+
+* `TRANSFORMS = {k: v for k, v in {..., exp.SHA2: lambda self, e: ...}.items() if ...}`:
+  the AST diff stopped at the comprehension clause (no line number) and reported the
+  whole class-body statement, so an edit inside one lambda body widened to every test
+  that used the dialect (val9 qh47: 270 tests). The diff now descends into nodes
+  without line numbers; the only consumer is the "every difference sits in a lambda
+  body" check, whose sites use line and entry coverage of the lambda (proof).
+* val9 242.3 -> **235.1**; every other set unchanged; 0 misses everywhere.
+
+## M21 — the state comparison also requires the same import-time imports and dict key order (includes M7-M20)
+
+Commit: **55d8c1b**. Docker: see below.
+
+Two gaps in what "nothing else changed" meant for the M15/M17/M18 narrowing (no
+validation commit hit either; found by reading the code):
+* Tests import only part of sqlglot, but the fingerprints are taken after importing
+  everything. A patch that changes which imports run at import time (and so what gets
+  registered) could change what a test sees without changing the all-modules state.
+  The fingerprint now records every import executed by sqlglot code while importing
+  (importer, module, names: 1202 edges, identical across hash seeds); any difference
+  keeps the wider masks.
+* Dict entries were compared as mappings, so a dict whose keys only changed order
+  looked unchanged. Now a different relative order of the common keys reports the
+  dict as changed for its enumerators, except for the 50 dicts whose order already
+  differs between two hash seeds on the pinned commit (all `EXPRESSION_METADATA`
+  tables, two ClickHouse and one Exasol parser table: built from sets, so tests cannot
+  rely on their order).
+
+Every set has the same simulated seconds as M20 (sample 96.8, val1 1060.3, val2 532.8,
+val3 287.5, val4 79.3, val5 176.4, val6 193.2, val7 47.5, val8 166.3, val9 235.1,
+val10 362.6, val11 138.7, val12 138.7, val13 110.5, val14 46.5, val15 169.9, val16
+546.3), 0 misses on every set.
+
+### New kinds of edit (tools/gen_kinds2.py, labelled by real pytest)
+
+Deleted and renamed functions (alone, or with every reference in sqlglot), changed
+defaults, added/removed parameters, added/removed decorators, `__init__` re-exports
+removed, added tests (passing/failing), trailing whitespace, multi-file mixes:
+47 commits (`.work/labels/kinds2`, not in the image). Labelling in progress; see the
+latest note below for counts.
+
+### Infection-probe evidence
+
+Official-style edits almost never reach a probe decision: on 174 fresh official-style
+code mutants (seed 4242) the selector chose a probe plan 8 times and judged none inert
+(val6: 0 probe plans, val9: 1, not inert). Inert decisions come from `is`/`==`-type
+swaps, so the new evidence is a fresh probe-edit set (`tools/gen_probe_edits.py`, seed
+777, 73 commits after removing 7 already in val15): 42 probe plans, 22 inert decisions,
+each labelled by real pytest (see the latest note below for right/wrong).
