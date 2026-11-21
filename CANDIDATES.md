@@ -845,6 +845,18 @@ run (M19/M21: 121.616 s, done at 126 s).
 | val16 | 546.3 | 546.7 | 46 -> 9 | 0 |
 | val4, val7, val11-val15 | | unchanged | | 0 |
 
+Local CPU, same units as the diagnosis (interleaved exact trees, user+sys of the run):
+
+| set | M13 CPU / sim | M19 CPU / sim | M22 CPU / sim |
+| --- | --- | --- | --- |
+| kit sample | 9.73 / 96.8 | 10.95 / 96.8 | 9.98 / 96.8 |
+| val9 | 12.10 / 250.3 | 17.86 / 242.3 | 10.63 / 235.1 |
+| val6 | 20.87 / 193.2 | 26.41 / 193.2 | 21.54 / 193.2 |
+
+M22 is back to M13's CPU with M19's (val9: M20's better) simulated cost. If practice
+behaves like these sets, expect roughly M13's CPU (16-17 s) with about 140 s
+simulated; not yet measured on the scorer.
+
 A labelled kinds2 commit (bipi, trailing whitespace) showed test_execute_tpcds failing,
 which no selection includes. Rerun with real pytest on the patched tree: it passes
 (57 subtests). The label is false: I had paused the labeller with SIGSTOP while it ran
