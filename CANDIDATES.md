@@ -7,7 +7,12 @@
 > scorer: on official-style sets they barely change the simulated cost (see "CPU
 > diagnosis" at the end).
 >
-> No candidate is recommended next yet. Known robustness issue: in the local emulated
+> **Recommended next: M21 (55d8c1b)** — M19 plus M20 (lambda bodies inside
+> comprehensions; val9 -7.2 s) and two soundness hardenings of the state comparison
+> (same import-time imports, same dict key order). Every validation set 0 misses;
+> Docker-checked on its exact tree (from-scratch build 312 s on a loaded machine;
+> valid, 0 misses, 121.616 s emulated). It does not cut CPU (about M19's); the CPU fix
+> (a gate that estimates the real saving) is not built yet. Known robustness issue: in the local emulated
 > container (not natively, and evidently not on the scorer) the state comparisons fall
 > back because tuples/dicts built from sets of classes (address-hashed) are ordered
 > differently in the build-time pinned run and the run-time patched run, and the
