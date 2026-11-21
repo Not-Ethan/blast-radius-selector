@@ -87,6 +87,8 @@ than over-selection.
   CPU each test costs our verifier.
 * `classinfo.json.gz`: sqlglot class hierarchy, dialect families, class spans, the
   lines that read attributes by computed name, and test-method spans.
+* `setup_cost.json`: CPU cost of class fixtures (`setUpClass`) our verifier pays once
+  per child (the executor tests load the TPC-H/TPC-DS data there).
 
 Regenerate with (Linux, the labeler's Python and packages):
 
@@ -98,7 +100,12 @@ docker run --rm -v $PWD/out:/out -v /path/to/tests.json:/data/tests.json br-trac
     python tools/measure_cpu.py /opt/sqlglot /data/tests.json /out/cpu.json
 python tools/build_maps.py out/trace tests.json maps/coverage.json.gz out/cpu.json <scale>
 python tools/build_classinfo.py <sqlglot checkout> maps/classinfo.json.gz
+python tools/measure_setup.py <sqlglot checkout> tests.json maps/setup_cost.json <scale>
 ```
+
+`<scale>` is the measuring machine's CPU time divided by the recorded seconds for
+single-threaded tests (1.23 on the machine used here). Coverage traced on macOS and on
+Linux came out identical.
 
 ## Validation (`tools/`, not used at decision time)
 
@@ -121,12 +128,17 @@ those numbers):
 | set | commits | simulated | oracle* | misses |
 | --- | ---: | ---: | ---: | ---: |
 | kit sample | 30 | 109.5 s | 94.4 s | 0 |
-| generated mix (`validation/val1`) | see `validation/` | | | 0 |
+| generated mix, size-weighted files (`validation/val1`) | 126 | 344.5 s | 208.6 s | 0 |
+| generated mix, uniform file choice (`validation/val2`, labeled part) | 68 | 352.2 s | 169.7 s | 0 |
+| `is`/`==` and `<`/`<=` swaps, half reaching TPC-DS (`validation/val4`) | 36 | 205.9 s | 12.4 s | 0 |
 
 \* oracle = cost of packing exactly the failing tests, the floor for any selector.
 
-CPU on a heavily loaded Apple M1 host was roughly 0.3-0.6 s per commit; the scoring
-machine's number is not known locally (amd64 emulation is far too slow to measure).
+CPU on a heavily loaded Apple M1 host was about 0.5 s per commit on the sample and
+val1 (more on val4, which is built to trigger probes); the scoring machine's number is
+not known locally (amd64 emulation is far too slow to measure). Labels come from
+`tools/ground_truth.py` (candidates plus random spot checks among other importers; no
+spot check ever failed outside the candidate set).
 
 ## Known risks
 
