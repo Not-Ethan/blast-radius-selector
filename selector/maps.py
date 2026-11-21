@@ -48,6 +48,10 @@ class Maps:
         # {class of the Tokenizer that created the core: set index}; "traced" = tests
         # with a record (selector/tokcore.py).
         self.tokcore = data.get("tokcore", {})
+        # String-keyed dict lookups (tools/trace_keys.py, selector/keyrec.py):
+        # {"lookups": {holder\tattr: {key or "*": set index}}, "traced": set index,
+        #  "holders": [...], "unrecordable": [...]}
+        self.keyrec = data.get("keyrec", {})
         # Tests that loop over fixture cases (tools/build_cases.py): id -> [(fixture, kind)]
         self.case_tests = {}
         self.case_counts = {}

@@ -40,6 +40,10 @@ class FileReport:
     # defaults) and might raise there: the verifier imports the module, and if that
     # fails every importer is included.
     import_check: bool = False
+    # indexes into site_masks: import-time sites, and those that edit entries of a
+    # string-keyed dict (selector/keyrefine.py may narrow them)
+    imp_sites: list = field(default_factory=list)
+    keyrec_sites: list = field(default_factory=list)
 
 
 @dataclass
@@ -327,6 +331,9 @@ class CandidateFinder:
             else:
                 mask = self._import_site_mask(rel, module, site)
                 report.imp |= mask
+                report.imp_sites.append(len(report.site_masks))
+                if site.dict_keys and all(k[0] == "str" for k in site.dict_keys) and site.kind != "docstring":
+                    report.keyrec_sites.append(len(report.site_masks))
                 if not site.value_safe:
                     report.import_check = True
             if site.kind == "def-header" and site.scope == "function" and not site.lines:

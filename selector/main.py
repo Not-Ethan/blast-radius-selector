@@ -20,7 +20,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
-from selector import policy  # noqa: E402
+from selector import keyrefine, policy  # noqa: E402
 from selector.candidates import CandidateFinder  # noqa: E402
 from selector.maps import Maps  # noqa: E402
 from selector.pack import pack  # noqa: E402
@@ -78,7 +78,15 @@ def main():
                     # do not reason about it
                     raise ValueError("unparsed patch or repeated file section")
                 found = finder.analyze(changes)
+                key_note = ""
+                if not found.unknown and any(getattr(f, "keyrec_sites", None) for f in found.files):
+                    try:
+                        key_note = keyrefine.refine(found, changes, ROOT, TMP, maps, log)
+                    except Exception as error:  # noqa: BLE001 - only a narrowing: keep the masks
+                        key_note = f"keys: failed ({error!r})"
                 plan = policy.plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_numbers)
+                if key_note:
+                    plan.note = (plan.note + " | " + key_note) if plan.note else key_note
             except Exception as error:  # noqa: BLE001 - never lose a commit
                 log(f"{cid}: analysis failed ({error!r}); running everything")
                 plan = policy.Plan(cid, include=set(number_of.values()))
