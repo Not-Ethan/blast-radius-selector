@@ -35,7 +35,7 @@ class RecDict(dict):
 
     def _note(self, key):
         if RECORDING[0]:
-            LOG.add((id(self), key if isinstance(key, str) else "*"))
+            LOG.add((id(self), key_id(key) or "*"))
 
     def __getitem__(self, key):
         self._note(key)
@@ -148,8 +148,24 @@ class RecDict(dict):
         return dict.__sizeof__(self)
 
 
+def key_id(key) -> str | None:
+    """A process-independent name for a dict key: the string itself, an enum member
+    or a class by its qualified name; None for anything else."""
+    import enum
+
+    if type(key) is str:
+        return key
+    if isinstance(key, enum.Enum):
+        kind = type(key)
+        return f"enum:{kind.__module__}.{kind.__qualname__}.{key.name}"
+    if isinstance(key, type):
+        return f"class:{key.__module__}:{key.__qualname__}"
+    return None
+
+
 def string_keyed(value) -> bool:
-    return type(value) is dict and all(isinstance(k, str) for k in value)
+    """An exact dict whose keys all have a key_id (strings, enum members, classes)."""
+    return type(value) is dict and all(key_id(k) is not None for k in value)
 
 
 # -- fingerprints --------------------------------------------------------------
@@ -288,8 +304,9 @@ def state_fingerprint(root_modules=("sqlglot",)) -> dict:
     def entry(value):
         try:
             if type(value) is dict or isinstance(value, RecDict):
-                if all(isinstance(k, str) for k in value):
-                    return {"d": {k: fp(v) for k, v in dict.items(value)}}
+                ids = [key_id(k) for k in value]
+                if all(i is not None for i in ids) and len(set(ids)) == len(ids):
+                    return {"d": {i: fp(v) for i, v in zip(ids, dict.values(value))}}
             out = {"v": fp(value)}
             UNORDERED[0] = True
             try:

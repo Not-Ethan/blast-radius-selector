@@ -332,8 +332,7 @@ class CandidateFinder:
                 mask = self._import_site_mask(rel, module, site)
                 report.imp |= mask
                 report.imp_sites.append(len(report.site_masks))
-                if site.dict_keys and all(k[0] == "str" for k in site.dict_keys) and site.kind != "docstring" \
-                        and getattr(site, "dict_order_same", False):
+                if site.dict_keys and site.kind != "docstring" and getattr(site, "dict_order_same", False):
                     report.keyrec_sites.append(len(report.site_masks))
                 if not site.value_safe:
                     report.import_check = True
