@@ -1,10 +1,14 @@
 
 # Candidate submissions (branch br-opt)
 
-> **Final entry if the cutoff were now: M17 (2963170)** — all three soundness fixes
-> (M11-M13) plus precise, still-sound replacements for two of the three widenings
-> (key-level records for dict entries; recorded module attribute reads). Recommended for
-> the next slot.
+> **Final entry if the cutoff were now: M17 (2963170)** — published, fresh-pull checked,
+> practice 166.2 s with 0 missed.
+>
+> **Recommended next: M19 (e73afb6)** — M17 plus the class-attribute replacement (M18),
+> half the state-comparison CPU with a cost gate, and a soundness fix for order-only
+> import-time changes that M17 also has (see M19). Docker-checked on its exact tree.
+> Once M19 is published, fresh-pull checked and scores 0 missed on practice, it should
+> replace M17 as the final entry.
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
@@ -626,3 +630,93 @@ of the emulated run (4d63 narrowed by its key record in the container).
 
 Still widened (M13): non-dict class attributes read through another class's name or
 copied across classes; next candidate.
+
+Practice result for M17 (2963170, public a394dc5): **166.2 s = 140.205 simulated +
+25.78-26.06 CPU, 0 missed** (M13: 162.513 + 16.2-16.8 = 179.2; M8: 137.985 + 14.5).
+
+## M18 — class-body edits narrowed through the state comparison (superseded by M19)
+
+Commit: **daf0f33**. Not Docker-checked on its own (M19 builds on it and was).
+
+* For a class-body assignment, keyrefine compares the whole program state (pinned vs
+  patched). When every difference is a class attribute of a class in the class map
+  (the edited one or one derived from it at import time, e.g. `Presto.TIME_MAPPING =
+  MySQL.TIME_MAPPING` shows up as its own changed attribute), a recorded dict entry or
+  the edited module binding, the site's candidates become the runtime readers of each
+  changed attribute: the M13/M14 class-attribute rule (class users or reads through
+  the class name, AND lines mentioning the name, typed where recorded, computed-name
+  readers) with every module- and class-level line left out. Anything else keeps the
+  M14 mask.
+* Soundness argument: an import-time reader of the attribute can only matter through
+  what it stores, and everything stored in sqlglot classes and module globals is in
+  the comparison (any such difference must itself be narrowable, or the M14 mask
+  stays); runtime readers are covered by the M13/M14 rule. Residual: state stored
+  outside sqlglot classes/modules (no `lru_cache` or similar in sqlglot, grep).
+
+| set | M17 | M18 | misses |
+| --- | ---: | ---: | ---: |
+| kit sample | 96.8 | 96.8 | 0 |
+| val16 (60 class-level, pytest labels) | 546.7 | 546.3 | 0 |
+| val3 (40 class-level) | 297.8 | 287.5 | 0 |
+| val9 / val6 / val2 | 242.5 / 193.2 / 532.8 | 242.3 / 193.2 / 532.8 | 0 |
+| val8 / val14 / val1 | 236.3 / 94.9 / 1071.1 | 171.6 / 54.4 / 1060.3 | 0 |
+| val4, val5, val7, val10-val13, val15 | | unchanged | 0 |
+
+## M19 — state comparison at half the CPU, only when it pays; seed-aware order reading (recommended next; includes M7-M18)
+
+Commit: **e73afb6**. Docker re-run on exactly this tree (`git archive`, `docker build
+--no-cache`, from-scratch build **204 s**): valid, 0 misses, simulated 121.616 s (as
+M17), done at 126 s of the emulated run; 3 state comparisons ran in the container.
+
+* `keyrec.fp` memoises fingerprints inside the fingerprinting process and skips the
+  order-insensitive pass for values without a list/tuple of 2+ items. Ordered
+  fingerprints are identical to M17's for all 17643 entries. One fingerprint child:
+  1.84-1.90 s CPU (M17) -> 0.75-0.89 s (M19), measured back to back.
+* The image stores one pinned fingerprint plus the 3 values whose order differs
+  between two hash seeds (file 2.0 MB -> 1.0 MB); the patched overlay no longer
+  copies the test files.
+* Gate (`policy.state_check_worthwhile`): the comparison runs only when the tests that
+  nothing but narrowable import-time sites select would cost more to handle (the
+  cheaper of packed inclusion and verification CPU) than its 0.8 s. Skipping only
+  keeps the wider masks.
+* **Soundness fix (also applies to M17's paths):** a non-dict value whose
+  order-insensitive fingerprint matched used to count as unchanged, so a patch whose
+  only import-time effect is reordering a list or tuple (directly or derived) could
+  have been missed. Now that reading applies only to the 3 values whose order
+  already differs between hash seeds on the pinned commit (built from sets), and the
+  patched tree is fingerprinted under the same seed as the stored pinned run. No
+  validation commit exercised the gap (no miss before or after).
+
+Kit-sample CPU, same units (user+sys of the whole local selector run, children
+included, native M1, pinned fingerprint precomputed as in the image, interleaved;
+round 1 discarded as warm-up):
+
+| | M13 | M17 | M19 |
+| --- | ---: | ---: | ---: |
+| total CPU (rounds 2, 3) | 10.12, 9.89 | 12.70, 12.86 | 10.85, 10.92 |
+| verification CPU | 8.56, 8.33 | 7.50, 7.61 | 7.40, 7.47 |
+| rest (analysis + state comparison) | 1.56, 1.56 | 5.20, 5.25 | 3.45, 3.45 |
+| state comparisons run | 0 | 3 | 3 |
+
+So the comparison's cost on the sample fell from about 3.6 s to about 1.9 s (rest
+minus M13's analysis), and the narrowing pays back about 1 s of verification CPU. On
+practice M17 cost +9.5 s CPU over M13; at the same number of comparisons M19 should
+cost roughly half that (not yet measured on the scorer).
+
+| set | M17 | M19 | misses |
+| --- | ---: | ---: | ---: |
+| kit sample | 96.8 | 96.8 | 0 |
+| val1 | 1071.1 | 1060.3 | 0 |
+| val2 | 532.8 | 532.8 | 0 |
+| val3 | 297.8 | 287.5 | 0 |
+| val4 | 79.3 | 79.3 | 0 |
+| val5 | 176.4 | 176.4 | 0 |
+| val6 | 193.2 | 193.2 | 0 |
+| val7 | 47.5 | 47.5 | 0 |
+| val8 | 236.3 | 166.3 | 0 |
+| val9 | 242.5 | 242.3 | 0 |
+| val10 | 362.6 | 362.6 | 0 |
+| val11 / val12 / val13 | 138.7 / 138.7 / 110.5 | 138.7 / 138.7 / 110.5 | 0 |
+| val14 | 94.9 | 46.5 | 0 |
+| val15 | 169.9 | 169.9 | 0 |
+| val16 | 546.7 | 546.3 | 0 |

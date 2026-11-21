@@ -76,8 +76,18 @@ ones against the patched tree and keep only the ones that fail.**
      each test also recorded the attributes it read through sqlglot module objects
      (`tools/trace_modattrs.py`); when the fingerprints show that only the edited
      binding and its re-exports changed, attribute reads inside functions count through
-     those records instead of "any `x.NAME` on a line the test ran". Any other state
-     difference keeps the rules below.
+     those records instead of "any `x.NAME` on a line the test ran". **Class-body
+     assignments**: when every difference is a class attribute of a known class (the
+     edited one, or one derived from it at import time, e.g. a copy in another dialect),
+     a recorded dict entry or the edited module binding, each changed attribute's
+     candidates are its runtime readers (the class-attribute rule below without
+     module- or class-level lines: what import-time code derived from it is itself in
+     the comparison). Any other state difference keeps the rules below.
+     Values compare by fingerprint; the order-insensitive reading applies only to the
+     few values whose order already differs between two hash seeds on the pinned
+     commit (built from sets), and the patched tree is fingerprinted under the same
+     seed as the stored pinned run. The comparison runs only when the tests it could
+     remove cost more to include or verify than its CPU (about 0.8 s).
      For a module-level assignment that keeps the same names bound (only the value
      changed), `from module import NAME` lines are not reads in themselves: the
      importing module's later uses of `NAME` are, and modules that re-export the name
@@ -176,6 +186,18 @@ ones against the patched tree and keep only the ones that fail.**
    expensive candidates are left out instead of included blindly. For `is`/`==` style
    swaps, which are nearly always inert, only the cheapest few candidates are run to
    observe this; anything else falls back to running or including every candidate.
+
+   **Priors never drop a test.** The failure probabilities in `selector/policy.py`
+   (`Q_FAIL`, `P_FAIL`, `Q_BIG`, `STAGE_MISMATCH`) and the edit-kind prior
+   `probe_live_prior` (0.25 for `is`/`==` swaps, 0.5 for `<`/`<=` swaps, 0.9 otherwise)
+   only enter the expected-cost comparison that picks, per commit, between including
+   the candidates, verifying them and probing them. A candidate leaves a commit's
+   selection only (a) because the maps built from the pinned commit show it cannot
+   reach the change, (b) because it ran on the patched tree and passed, or (c) on the
+   infection-probe evidence above: zero differing evaluations, at least 50 of them,
+   over at least 3 tests that we ran. (c) is evidence, not proof; the edit-kind prior
+   only decides whether the light probe (cheapest few candidates) is offered for
+   `is`/`==` swaps, and dropping still needs that observed evidence.
 
 5. **Pack** (`selector/pack.py`): longest-processing-time packing for every worker
    count 1..8 plus a move/swap improvement pass, choosing the cheapest.
@@ -286,6 +308,11 @@ spot check ever failed outside the candidate set).
 
 * Verification reproduces the labeler's run in-process; tests that depend on global
   state from other tests, or on real process pools, could behave differently.
+* The state comparison sees every attribute of every sqlglot class and module global
+  (recursively through containers, functions, closures and object attributes), but
+  not caches outside them (e.g. the contents of an `lru_cache` filled at import time)
+  or state held only by other packages; an import-time effect stored only there would
+  be missed by the key, module and class-attribute records.
 * Name-reference narrowing of import-time changes, the SQL-text narrowing of
   `FUNCTIONS`/`KEYWORDS`/`*_PARSERS` entries and the "inert edit" probes are
   heuristics, not proofs; the validation sets found no miss from them.
