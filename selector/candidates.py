@@ -368,6 +368,9 @@ class CandidateFinder:
             usage = self._class_usage(f"{module}:{site.class_qual}")
             if usage is not None and os.environ.get("BR_CLASS_USAGE", "1") == "0":
                 usage = maps.all_mask  # measurement switch: no class-usage narrowing
+            if usage is not None:
+                cross = self._class_name_reads(f"{module}:{site.class_qual}")
+                usage = None if cross is None else usage | cross
             if usage is None:
                 return base
             if site.kind == "class-header":
@@ -578,6 +581,22 @@ class CandidateFinder:
             if word.search(value):
                 hits.update(range(first, last + 1))
         return hits
+
+    def _class_name_reads(self, key):
+        """Tests that ran a line reading an attribute through the class `key` (or a
+        subclass) spelled by name (`MySQL.TIME_MAPPING` in Presto's class body,
+        `Hive.INVERSE_TIME_MAPPING` in PrestoGenerator): such a read needs no instance,
+        so it is a use of the class the instantiation records do not show. None when
+        the table of such reads is missing (then the class usage is not used)."""
+        maps = self.maps
+        if maps.xreads is None:
+            return None
+        group = maps.descendants(key) | {key}
+        mask = 0
+        for k in group:
+            for rel, line in maps.xreads.get(k, ()):
+                mask |= maps.func_mask(rel, [line]) | maps.mod_mask(rel, [line])
+        return mask
 
     def _class_usage(self, key, family=True):
         maps = self.maps
