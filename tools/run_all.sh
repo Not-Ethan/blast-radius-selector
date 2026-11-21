@@ -2,7 +2,7 @@
 # Run every local set (kit sample + labelled validation sets) and print breakdowns.
 # Usage: tools/run_all.sh <tag> [sets...]
 HERE="$(cd "$(dirname "$0")/.." && pwd)"; TAG=$1; shift
-SETS=${@:-sample val1 val2 val4 val3 val5 val6}
+SETS=${@:-sample val1 val2 val4 val3 val5 val6 val7}
 for s in $SETS; do
   if [ $s = sample ]; then
     A="$HERE/../_kits/blast-radius/sample/sample/answers.json"

@@ -245,7 +245,7 @@ What changed:
 * val2 +52 and val6 +3 commits labelled with pytest; val4's 36 and 25 of val2's 68 older
   in-process labels re-checked with pytest: identical.
 
-## M8 — per-case runs for the other 23 fixture-loop tests of test_optimizer (recommended next; includes M7)
+## M8 — per-case runs for the other 23 fixture-loop tests of test_optimizer (superseded by M9)
 
 Commit: **8b8c280** (branch br-opt). Builds on M7. Docker re-run on exactly this tree
 (`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run (2
@@ -282,3 +282,48 @@ case parses its SQL afresh; whether shared objects such as a test's schema are m
 across cases has not been checked. Consistency check done: for all 28 per-case tests,
 every line the full run covers (at the pinned commit) is covered by the zero-case run or
 by some case run alone (0 lines only in the full run).
+
+## M9 — tokenizer settings narrowed through the tokenizer core (recommended next; includes M7, M8)
+
+Commit: **f3572a4** (branch br-opt). Builds on M8. Docker re-run on exactly this tree
+(`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run (1
+verification killed at the emulated deadline).
+
+What changed:
+* `Tokenizer._init_core` copies the tokenizer settings into a `TokenizerCore`
+  (`numeric_escapes=self.NUMERIC_ESCAPES`, ...). That line runs whenever a tokenizer
+  is built, so an edit of any setting in a dialect's Tokenizer selected every test
+  that tokenized that dialect (sample 4d63: 358 tests for a Snowflake
+  `NUMERIC_ESCAPES` entry). New build-time record (`tools/trace_tokcore.py`, each test
+  alone in a fresh interpreter, 1620/1620 recorded): which lines of
+  `tokenizer_core.py` that observe a setting field ran for cores built by which
+  Tokenizer class. The `_init_core` line now counts only for tests that ran an
+  observing line of that field for the changed class or a subclass
+  (`selector/tokcore.py`). Off if the patch touches the core or `_init_core`, or
+  mentions `TokenizerCore`/`_init_core` elsewhere.
+* A line that uses a changed class attribute only for its truth value (following a
+  local copied from it) is dropped when both values have the same truth; for a dict
+  display whose keys stay the same, `key in X` lines are dropped too (the Dialect
+  metaclass only tests `"x" in NUMERIC_ESCAPES`). `NAME: annotation` statements
+  without a value are not reads.
+* Candidates: 4d63 358 -> 7, val2 muzi 316 -> 20, vfxf -> 4, w47z -> 12 (3 failing,
+  all kept), icb8 -> 1, val3 7upf -> 7.
+
+| set | M8 sim | M9 sim | misses | verify CPU estimate M8 -> M9 (local) |
+| --- | ---: | ---: | ---: | ---: |
+| kit sample (30) | 104.8 | **96.8** (oracle 94.4) | 0 | 23.8 -> 22.6 |
+| val1 (199) | 1105.5 | 1105.5 | 0 | 136.0 -> 136.0 |
+| val2 (120) | 581.4 | **552.8** | 0 | 157.7 -> 155.3 |
+| val4 (36) | 79.3 | 79.3 | 0 | 42.8 -> 42.8 |
+| val3 (40 class-level) | 276.9 | **270.6** | 0 | 31.4 -> 30.7 |
+| val5 (64 new kinds) | 203.5 | 203.5 | 0 | 9.4 -> 9.4 |
+| val6 (60 official-style) | 193.2 | 193.2 | 0 | 49.8 -> 49.8 |
+| val7 = 44 generated tokenizer-setting edits (pytest labels, 15 with failures) | 562.8 | **70.8** (oracle 32.8) | 0 | |
+
+Expected on practice: one sample commit in 30 was such an edit (4d63: 9.5 s in M7,
+7.9 s in M8, 0 s in M9: its 7 remaining candidates are verified in 1.1 s local CPU);
+M9's sample total is 2.5 s above the oracle.
+Risk: the record is per test at the pinned commit; it assumes a test's path through
+the core up to the first read of the changed field does not depend on that field
+(true by construction: identical inputs and code until the field is read) and that
+runs are deterministic. A core built outside `_init_core` matches every class.
