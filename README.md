@@ -54,7 +54,10 @@ ones against the patched tree and keep only the ones that fail.**
      are followed transitively (star imports still count as reads). Readers of module
      attributes by computed name that can only use classes (`inspect.getmembers` with an
      `isclass` predicate, `getattr(m, name)()`) are skipped when both values are plain
-     data (constants, displays, comprehensions). An import-time change whose new value is
+     data (constants, displays, comprehensions). A computed-name read (`getattr`,
+     `vars`, `__dict__`) inside a function or lambda body only counts for tests that ran
+     that function: the module-level execution of the same line just defines it (the
+     executor's `EXTRACT` lambda shares its line with a dict literal). An import-time change whose new value is
      not provably safe to evaluate (a display of constants, or a comprehension of string
      methods over string constants) makes the verifier import the changed module (a
      zero-test job if nothing else is verified); if that import fails, or cannot be

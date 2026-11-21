@@ -288,5 +288,117 @@
    "sqlglot/expressions/math.py:163 comment"
   ],
   "labeller": "pytest"
+ },
+ "qswc": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/generator.py:3186 'if e' -> 'if not e'"
+  ],
+  "labeller": "pytest"
+ },
+ "qu6z": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/parsers/materialize.py:34 'if not self._match(TokenType.L_BRACKET):' -> 'if not not self._match(TokenType.L_BRACKET):'"
+  ],
+  "labeller": "pytest"
+ },
+ "r7x8": {
+  "kind": "comment",
+  "desc": [
+   "sqlglot/expressions/temporal.py:566 comment"
+  ],
+  "labeller": "pytest"
+ },
+ "smvq": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/generators/mysql.py:71 'if scale in (None, exp.UnixToTime.SECONDS):' -> 'if not scale in (None, exp.UnixToTime.SECONDS):'"
+  ],
+  "labeller": "pytest"
+ },
+ "t357": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/optimizer/qualify_columns.py:1284 'columns = columns or scope.outer_columns' -> 'columns = columns and scope.outer_columns'"
+  ],
+  "labeller": "pytest"
+ },
+ "tdph": {
+  "kind": "comment",
+  "desc": [
+   "tests/fixtures/optimizer/optimize_joins.sql:28 fixture comment '# note: x'"
+  ],
+  "labeller": "pytest"
+ },
+ "tjyu": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/typing/snowflake.py:195 '- Other numeric types (INT, NUMBER) -> NUMBER(38, 12)' -> '- Other numeric types (INT, NUMBER) -> NUMBER(38, 11)'"
+  ],
+  "labeller": "pytest"
+ },
+ "u9gd": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/parsers/duckdb.py:318 'exp.ConnectTo(this=self._parse_string() or self._parse_id_va' -> 'exp.ConnectTo(this=self._parse_string() and self._parse_id_v'"
+  ],
+  "labeller": "pytest"
+ },
+ "uepk": {
+  "kind": "comment",
+  "desc": [
+   "sqlglot/parsers/drill.py:17 comment"
+  ],
+  "labeller": "pytest"
+ },
+ "uf9w": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/expressions/query.py:201 \"'SELECT x FROM tbl OFFSET 10'\" -> \"'SELECT x FROM tbl OFFSET 9'\""
+  ],
+  "labeller": "pytest"
+ },
+ "uhkr": {
+  "kind": "comment",
+  "desc": [
+   "sqlglot/serde.py:84 comment"
+  ],
+  "labeller": "pytest"
+ },
+ "ui2d": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/dialects/dremio.py:10 'SUPPORTS_USER_DEFINED_TYPES = False' -> 'SUPPORTS_USER_DEFINED_TYPES = True'"
+  ],
+  "labeller": "pytest"
+ },
+ "v3jf": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/optimizer/optimize_joins.py:53 'if name in exp.column_table_names(predicate):' -> 'if not name in exp.column_table_names(predicate):'"
+  ],
+  "labeller": "pytest"
+ },
+ "v4sw": {
+  "kind": "comment",
+  "desc": [
+   "sqlglot/optimizer/eliminate_ctes.py:26 comment"
+  ],
+  "labeller": "pytest"
+ },
+ "wr4s": {
+  "kind": "code",
+  "desc": [
+   "sqlglot/optimizer/eliminate_ctes.py:49 'if journal is not None and with_node.parent:' -> 'if journal is None and with_node.parent:'"
+  ],
+  "labeller": "pytest"
+ },
+ "y2nt": {
+  "kind": "fixture",
+  "desc": [
+   "tests/fixtures/optimizer/quote_identifiers.sql:31 'SELECT * FROM \"t\" AS \"dual\";' -> 'SELECT * x FROM \"t\" AS \"dual\";'"
+  ],
+  "labeller": "pytest"
  }
 }

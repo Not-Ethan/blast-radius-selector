@@ -556,6 +556,32 @@ class CandidateFinder:
             base = ".".join(parts[: len(parts) - node.level + 1] + ([base] if base else []))
         return base
 
+    def _file_index(self, py, raw):
+        """One pass over a file's AST, cached: its `from M import ...` statements
+        (resolved base, [(name, asname)], line), the lines of every Name id, and
+        every attribute access (attr -> [(first line, last line, leaf of the value)])."""
+        import ast as _ast
+
+        cache = self.__dict__.setdefault("_indexes", {})
+        if py in cache:
+            return cache[py]
+        tree = self._tree(py, raw)
+        if tree is None:
+            cache[py] = None
+            return None
+        imports, names, attrs = [], {}, {}
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.ImportFrom):
+                imports.append((self._import_base(py, node), [(a.name, a.asname) for a in node.names], node.lineno))
+            elif isinstance(node, _ast.Attribute):
+                value = node.value
+                leaf = value.id if isinstance(value, _ast.Name) else (value.attr if isinstance(value, _ast.Attribute) else None)
+                attrs.setdefault(node.attr, []).append((node.lineno, node.end_lineno or node.lineno, leaf))
+            elif isinstance(node, _ast.Name):
+                names.setdefault(node.id, []).append(node.lineno)
+        cache[py] = index = {"imports": imports, "names": names, "attrs": attrs}
+        return index
+
     def _external_module_refs(self, py, raw, module, names, modules=None, keep_import_lines=True) -> set:
         """Lines of another file that can see `module`'s binding of one of
         `names`: everything mentioning a name it imports from the module, and
@@ -565,41 +591,35 @@ class CandidateFinder:
         NAME` line is not itself a read: it binds the same object, and the
         module's later reads of NAME are lines of their own. Star imports stay
         reads (which names they bind is not visible here)."""
-        import ast as _ast
-
-        tree = self._tree(py, raw)
-        if tree is None:
+        index = self._file_index(py, raw)
+        if index is None:
             return set(range(1, raw.count(b"\n") + 2))  # cannot tell: everything
         modules = modules or {module}
         leaves = {m.rsplit(".", 1)[-1] for m in modules}
         imported = set()
         hits = set()
-        for node in _ast.walk(tree):
-            if isinstance(node, _ast.ImportFrom):
-                if self._import_base(py, node) in modules:
-                    for alias in node.names:
-                        if alias.name == "*":
-                            imported.update(names)
-                            hits.add(node.lineno)
-                        elif alias.name in names:
-                            imported.add(alias.asname or alias.name)
-                            if keep_import_lines:
-                                hits.add(node.lineno)
-            elif isinstance(node, _ast.Attribute) and node.attr in names:
-                value = node.value
-                if (isinstance(value, _ast.Name) and value.id in leaves) or (isinstance(value, _ast.Attribute) and value.attr in leaves):
-                    hits.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
-        if imported:
-            for node in _ast.walk(tree):
-                if isinstance(node, _ast.Name) and node.id in imported:
-                    hits.add(node.lineno)
+        for base, aliases, lineno in index["imports"]:
+            if base not in modules:
+                continue
+            for name, asname in aliases:
+                if name == "*":
+                    imported.update(names)
+                    hits.add(lineno)
+                elif name in names:
+                    imported.add(asname or name)
+                    if keep_import_lines:
+                        hits.add(lineno)
+        for name in names:
+            for first, last, leaf in index["attrs"].get(name, ()):
+                if leaf in leaves:
+                    hits.update(range(first, last + 1))
+        for name in imported:
+            hits.update(index["names"].get(name, ()))
         return hits
 
     def _reexporters(self, module, names) -> set:
         """`module` plus every module that binds one of `names` by importing it
         from a module already in the set (transitively)."""
-        import ast as _ast
-
         needles = [n.encode() for n in names]
         found = {module}
         changed = True
@@ -614,15 +634,13 @@ class CandidateFinder:
                     mod = mod[: -len(".__init__")]
                 if mod in found:
                     continue
-                tree = self._tree(py, raw)
-                if tree is None:
+                index = self._file_index(py, raw)
+                if index is None:
                     continue
-                for node in _ast.walk(tree):
-                    if isinstance(node, _ast.ImportFrom) and self._import_base(py, node) in found \
-                            and any(a.name in names for a in node.names):
-                        found.add(mod)
-                        changed = True
-                        break
+                if any(base in found and any(name in names for name, _ in aliases)
+                       for base, aliases, _ in index["imports"]):
+                    found.add(mod)
+                    changed = True
         return found
 
     def _class_usage(self, key, family=True):
@@ -686,6 +704,46 @@ class CandidateFinder:
                 return False
             mentioned = mentioned or total > 0
         return mentioned
+
+    def _dynamic_mask(self, rel, line) -> int:
+        """Tests that ran the computed-name read at rel:line. When every call on
+        that line that reads by computed name (getattr/vars/__dict__) sits inside a
+        function or lambda body, only runs of that function count: the module or
+        class body executing the same line merely defines the function
+        (executor/env.py's EXTRACT lambda shares its line with the dict literal)."""
+        import ast as _ast
+
+        maps = self.maps
+        cache = self.__dict__.setdefault("_dynamic_inside", {})
+        key = (rel, line)
+        if key not in cache:
+            inside = None
+            raw = self._source(rel)
+            tree = self._tree(rel, raw) if raw else None
+            if tree is not None:
+                inside = True
+                found = False
+
+                def visit(node, in_func):
+                    nonlocal inside, found
+                    is_reader = (isinstance(node, _ast.Call) and isinstance(node.func, _ast.Name)
+                                 and node.func.id in ("getattr", "vars", "hasattr", "setattr")) \
+                        or (isinstance(node, _ast.Attribute) and node.attr == "__dict__")
+                    if is_reader and hasattr(node, "lineno") and node.lineno <= line <= (node.end_lineno or node.lineno):
+                        found = True
+                        if not in_func:
+                            inside = False
+                    child_in = in_func or isinstance(node, (_ast.Lambda, _ast.FunctionDef, _ast.AsyncFunctionDef))
+                    for child in _ast.iter_child_nodes(node):
+                        visit(child, child_in)
+
+                visit(tree, False)
+                if not found:
+                    inside = None  # cannot tell which call reads: count every run of the line
+            cache[key] = inside
+        if cache[key]:
+            return maps.func_mask(rel, [line])
+        return maps.func_mask(rel, [line]) | maps.mod_mask(rel, [line])
 
     def _class_only_reader(self, rel, line) -> bool:
         """Whether the computed-name attribute read at rel:line can only use a
@@ -808,5 +866,5 @@ class CandidateFinder:
             if plain_value and self._class_only_reader(rel, line):
                 continue
             if regex is None or any(re.fullmatch(regex, n) for n in names):
-                mask |= maps.func_mask(rel, [line]) | maps.mod_mask(rel, [line])
+                mask |= self._dynamic_mask(rel, line)
         return mask
