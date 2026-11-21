@@ -124,6 +124,8 @@ def main():
     ap.add_argument("--timeout", type=float, default=1500.0)
     ap.add_argument("--python", default=sys.executable)
     ap.add_argument("--tmp", default=None)
+    ap.add_argument("--all", action="store_true",
+                    help="run the whole suite in one pytest process (files in tests.json order) for every patch")
     o = ap.parse_args()
 
     repo = os.path.realpath(o.repo)
@@ -174,6 +176,9 @@ def main():
         nodes = {maps.tests[i] for i in maps.tests_of(mask)} & set(number_of)
         pool = sorted({maps.tests[i] for i in maps.tests_of(importers)} & set(number_of) - nodes)
         spot = set(rng.sample(pool, min(o.spot, len(pool))))
+        if o.all:
+            nodes, spot = set(number_of), set()
+            reasons.append("--all: whole suite in one process")
         work.append((cid, files, sorted(nodes), sorted(spot), reasons))
     print(f"{len(work)} patches to label", file=sys.stderr)
 

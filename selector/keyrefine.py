@@ -25,12 +25,25 @@ _CODE = ("import sys, json\n"
          "sys.path.insert(0, {parent!r})\n"
          "from selector import keyrec\n"
          "json.dump(keyrec.state_fingerprint(), sys.stdout)\n")
+# Build-time only: allocate a few throwaway classes and buffers before each import so
+# that objects hashed by address (classes) land elsewhere; values ordered by such
+# hashes (tuples or dicts built from sets of classes) then show up as unstable even
+# where addresses are reproducible (no ASLR, e.g. an emulated container), where the
+# build-time and run-time layouts still differ.
+_PAD = ("import builtins, random\n"
+        "_rng, _keep, _real = random.Random({pad}), [], builtins.__import__\n"
+        "def _padded(*a, **k):\n"
+        "    for _ in range(_rng.randrange(0, 6)):\n"
+        "        _keep.append(type('Pad', (), {{}}))\n"
+        "        _keep.append(bytearray(_rng.randrange(1, 4000)))\n"
+        "    return _real(*a, **k)\n"
+        "builtins.__import__ = _padded\n")
 
 
-def _start(tree: str, seed: int):
+def _start(tree: str, seed: int, pad: int = 0):
     env = dict(os.environ, PYTHONPATH=tree, PYTHONHASHSEED=str(seed), PYTHONDONTWRITEBYTECODE="1",
                SKIP_INTEGRATION="0")
-    code = _CODE.format(parent=os.path.dirname(HERE))
+    code = (_PAD.format(pad=pad) if pad else "") + _CODE.format(parent=os.path.dirname(HERE))
     return subprocess.Popen([sys.executable, "-c", code], cwd=tree, env=env, stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL)
 
@@ -227,14 +240,23 @@ def _unstable(p1: dict, p2: dict) -> frozenset:
 
 
 def build_pinned(root: str, out: str) -> None:
-    """Fingerprint the pinned tree under two hash seeds; store the first and the
-    values whose order depends on the seed (run when the image is built, so a run only
+    """Fingerprint the pinned tree four times (hash seeds 1-3, two of them with shifted
+    memory layouts), one at a time to bound memory; store the first and the values
+    whose order differs in any other run (run when the image is built, so a run only
     fingerprints patched trees)."""
     import gzip
 
-    results = [_finish(proc, 600) for proc in (_start(root, 1), _start(root, 2))]
-    if any(r is None for r in results):
-        raise SystemExit("pinned fingerprint failed")
-    unstable = _unstable(results[0], results[1])
+    first = _finish(_start(root, 1), 1800)
+    if first is None:
+        raise SystemExit("pinned fingerprint failed: run (1, 0)")
+    unstable = set()
+    for seed, pad in [(2, 0), (2, 1), (3, 2)]:
+        other = _finish(_start(root, seed, pad=pad), 1800)
+        if other is None:
+            raise SystemExit(f"pinned fingerprint failed: run ({seed}, {pad})")
+        if other["imports"] != first["imports"] or other["import_errors"] != first["import_errors"]:
+            raise SystemExit("pinned imports differ between runs")
+        unstable |= _unstable(first, other)
+        del other
     with gzip.open(out, "wt", compresslevel=9) as handle:
-        json.dump({"seed1": results[0], "unstable": sorted(unstable)}, handle)
+        json.dump({"seed1": first, "unstable": sorted(unstable)}, handle)
