@@ -107,8 +107,13 @@ def observers(core_source: str) -> dict[str, list[tuple[int, str]]]:
                 for inner in ast.walk(node):
                     if isinstance(inner, ast.Name):
                         nested_names.add(inner.id)
-        for a in func.args.args + func.args.kwonlyargs + func.args.posonlyargs:
+        for a in func.args.args + func.args.kwonlyargs + func.args.posonlyargs + \
+                [x for x in (func.args.vararg, func.args.kwarg) if x is not None]:
             bound[a.arg] = bound.get(a.arg, 0) + 1
+        for node in ast.walk(func):
+            if isinstance(node, (ast.Global, ast.Nonlocal)):
+                for name in node.names:
+                    bound[name] = bound.get(name, 0) + 2  # not a local: no flow
         for node in ast.walk(func):
             if not (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "self"
                     and node.attr in fields and isinstance(node.ctx, ast.Load)):
@@ -173,7 +178,29 @@ def parents_of(tree) -> dict:
     return _parents(tree)
 
 
-def mention_kinds(tree, parents, line: int, names, text: str) -> set | None:
+def mentions_by_line(tree, names) -> dict:
+    """line -> [Attribute `X.NAME` (by its last line) / Name `NAME` nodes] for `names`."""
+    out: dict = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr in names:
+            out.setdefault(node.end_lineno, []).append(node)
+        elif isinstance(node, ast.Name) and node.id in names:
+            out.setdefault(node.lineno, []).append(node)
+    return out
+
+
+def mention_index(tree) -> dict:
+    """name -> line -> nodes, for every Attribute (by its last line) and Name."""
+    out: dict = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            out.setdefault(node.attr, {}).setdefault(node.end_lineno, []).append(node)
+        elif isinstance(node, ast.Name):
+            out.setdefault(node.id, {}).setdefault(node.lineno, []).append(node)
+    return out
+
+
+def mention_kinds(tree, parents, line: int, names, text: str, by_line=None) -> set | None:
     """How the reads of `names` on `line` are used, following a local they are
     assigned to inside the enclosing function (same rules as observers()). None
     when some mention on the line is not a plain read we can classify (a store,
@@ -181,12 +208,9 @@ def mention_kinds(tree, parents, line: int, names, text: str) -> set | None:
     import re
 
     expected = sum(len(re.findall(r"\b" + re.escape(n) + r"\b", text)) for n in names)
-    nodes = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute) and node.attr in names and node.end_lineno == line:
-            nodes.append(node)
-        elif isinstance(node, ast.Name) and node.id in names and node.lineno == line:
-            nodes.append(node)
+    if by_line is None:
+        by_line = mentions_by_line(tree, names)
+    nodes = by_line.get(line, [])
     if not nodes or len(nodes) != expected:
         return None
     kinds = set()
@@ -211,6 +235,8 @@ def mention_kinds(tree, parents, line: int, names, text: str) -> set | None:
                                                             ast.ClassDef)):
                     if any(isinstance(x, ast.Name) and x.id == name for x in ast.walk(inner)):
                         nested = True
+                if isinstance(inner, (ast.Global, ast.Nonlocal)) and name in inner.names:
+                    nested = True  # not a local: other scopes see it
             args = func.args
             if any(a.arg == name for a in args.args + args.kwonlyargs + args.posonlyargs) \
                     or (args.vararg and args.vararg.arg == name) or (args.kwarg and args.kwarg.arg == name):

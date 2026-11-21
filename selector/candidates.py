@@ -853,11 +853,18 @@ class CandidateFinder:
             parents = cache[py] = tokcore.parents_of(tree)
         allowed = {"truth", "member"} if same_keys else {"truth"}
         text = raw.decode("utf-8", "replace").split("\n")
+        index = self.__dict__.setdefault("_mention_index", {}).get(py)
+        if index is None:
+            index = self._mention_index[py] = tokcore.mention_index(tree)
+        by_line = {}
+        for name in names:
+            for line, nodes in index.get(name, {}).items():
+                by_line.setdefault(line, []).extend(nodes)
         out = set()
         for i in hits:
             if not 0 < i <= len(text):
                 continue
-            kinds = tokcore.mention_kinds(tree, parents, i, set(names), text[i - 1])
+            kinds = tokcore.mention_kinds(tree, parents, i, set(names), text[i - 1], by_line)
             if kinds and kinds <= allowed:
                 out.add(i)
         return out
