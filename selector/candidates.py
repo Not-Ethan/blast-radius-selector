@@ -366,6 +366,8 @@ class CandidateFinder:
             return mask
         if site.scope == "class":
             usage = self._class_usage(f"{module}:{site.class_qual}")
+            if usage is not None and os.environ.get("BR_CLASS_USAGE", "1") == "0":
+                usage = maps.all_mask  # measurement switch: no class-usage narrowing
             if usage is None:
                 return base
             if site.kind == "class-header":
@@ -522,9 +524,11 @@ class CandidateFinder:
         if tree is None:
             cache[py] = None
             return None
-        imports, names, attrs = [], {}, {}
+        imports, names, attrs, strings = [], {}, {}, []
         for node in _ast.walk(tree):
-            if isinstance(node, _ast.ImportFrom):
+            if isinstance(node, _ast.Constant) and isinstance(node.value, str):
+                strings.append((node.lineno, node.end_lineno or node.lineno, node.value))
+            elif isinstance(node, _ast.ImportFrom):
                 imports.append((self._import_base(py, node), [(a.name, a.asname) for a in node.names], node.lineno))
             elif isinstance(node, _ast.Attribute):
                 value = node.value
@@ -532,69 +536,48 @@ class CandidateFinder:
                 attrs.setdefault(node.attr, []).append((node.lineno, node.end_lineno or node.lineno, leaf))
             elif isinstance(node, _ast.Name):
                 names.setdefault(node.id, []).append(node.lineno)
-        cache[py] = index = {"imports": imports, "names": names, "attrs": attrs}
+        cache[py] = index = {"imports": imports, "names": names, "attrs": attrs, "strings": strings}
         return index
 
-    def _external_module_refs(self, py, raw, module, names, modules=None, keep_import_lines=True) -> set:
-        """Lines of another file that can see `module`'s binding of one of
-        `names`: everything mentioning a name it imports from the module, and
-        attribute accesses <...module>.NAME. `modules` (default {module}) also
-        counts modules that re-export the binding. With keep_import_lines=False
-        (the edit only changed the value bound to the names), a `from M import
-        NAME` line is not itself a read: it binds the same object, and the
-        module's later reads of NAME are lines of their own. Star imports stay
-        reads (which names they bind is not visible here)."""
+    def _external_module_refs(self, py, raw, names, keep_import_lines=True) -> set:
+        """Lines of another file that can read a module-level binding of one of
+        `names`, whatever module object they reach it through: the module may be
+        imported under an alias (`from sqlglot import expressions as exp`, then
+        `exp.NAME`) or re-export the name by a star import, so module identity is
+        not tracked. Counted: every attribute access `<anything>.NAME`; every use
+        of a name bound by `from <anything> import NAME [as A]`; in a file with a
+        star import, every bare use of NAME; every string constant mentioning NAME
+        (getattr(m, "NAME"), __all__). With keep_import_lines=False (only the value
+        bound to the names changed) a `from M import NAME` line is not itself a
+        read: it binds the same object, and the later reads are lines of their own;
+        star imports stay reads."""
         index = self._file_index(py, raw)
         if index is None:
             return set(range(1, raw.count(b"\n") + 2))  # cannot tell: everything
-        modules = modules or {module}
-        leaves = {m.rsplit(".", 1)[-1] for m in modules}
         imported = set()
         hits = set()
+        star = False
         for base, aliases, lineno in index["imports"]:
-            if base not in modules:
-                continue
             for name, asname in aliases:
                 if name == "*":
-                    imported.update(names)
+                    star = True
                     hits.add(lineno)
                 elif name in names:
                     imported.add(asname or name)
                     if keep_import_lines:
                         hits.add(lineno)
+        if star:
+            imported.update(names)
         for name in names:
-            for first, last, leaf in index["attrs"].get(name, ()):
-                if leaf in leaves:
-                    hits.update(range(first, last + 1))
+            for first, last, _leaf in index["attrs"].get(name, ()):
+                hits.update(range(first, last + 1))
         for name in imported:
             hits.update(index["names"].get(name, ()))
+        word = re.compile(r"\b(?:" + "|".join(re.escape(n) for n in sorted(names)) + r")\b")
+        for first, last, value in index["strings"]:
+            if word.search(value):
+                hits.update(range(first, last + 1))
         return hits
-
-    def _reexporters(self, module, names) -> set:
-        """`module` plus every module that binds one of `names` by importing it
-        from a module already in the set (transitively)."""
-        needles = [n.encode() for n in names]
-        found = {module}
-        changed = True
-        while changed:
-            changed = False
-            for py in self._all_py_files():
-                raw = self._source(py)
-                if not any(needle in raw for needle in needles):
-                    continue
-                mod = py[:-3].replace("/", ".")
-                if mod.endswith(".__init__"):
-                    mod = mod[: -len(".__init__")]
-                if mod in found:
-                    continue
-                index = self._file_index(py, raw)
-                if index is None:
-                    continue
-                if any(base in found and any(name in names for name, _ in aliases)
-                       for base, aliases, _ in index["imports"]):
-                    found.add(mod)
-                    changed = True
-        return found
 
     def _class_usage(self, key, family=True):
         maps = self.maps
@@ -892,11 +875,6 @@ class CandidateFinder:
                    plain_value=False, truth_same=False, same_keys=False) -> int:
         maps = self.maps
         needles = [n.encode() for n in names]
-        module_needles = None
-        modules = None
-        if module:
-            modules = self._reexporters(module, names) if same_binding else {module}
-            module_needles = [m.encode() for m in modules] + [m.rsplit(".", 1)[-1].encode() for m in modules]
         alternatives = "|".join(re.escape(n) for n in sorted(names))
         pattern = re.compile(r"\b(?:" + alternatives + r")\b")
         definition = re.compile(r"^\s*(?:" + alternatives + r")\s*(?::[^=]*)?=(?!=)")
@@ -905,11 +883,8 @@ class CandidateFinder:
             raw = self._source(py)
             if not any(needle in raw for needle in needles):
                 continue
-            if module_needles is not None and py != site_rel:
-                if not any(n in raw for n in module_needles):
-                    continue
-                hits = self._external_module_refs(py, raw, module, names, modules=modules,
-                                                  keep_import_lines=not same_binding)
+            if module is not None and py != site_rel:
+                hits = self._external_module_refs(py, raw, names, keep_import_lines=not same_binding)
                 if hits:
                     mask |= self._hits_mask(py, raw, hits)
                 continue

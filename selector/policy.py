@@ -31,6 +31,8 @@ PARALLEL = int(os.environ.get("BR_PARALLEL", "2"))
 # PROBE_MIN_COUNT times, by at least PROBE_MIN_TESTS cheap tests, and the two
 # never differed, and no cheap test failed.
 PROBE_MIN_COUNT = int(os.environ.get("BR_PROBE_MIN_COUNT", "50"))
+# Infection probes leave out candidates that were not run (see README); off: "0".
+PROBES = os.environ.get("BR_PROBES", "1") != "0"
 PROBE_MIN_TESTS = int(os.environ.get("BR_PROBE_MIN_TESTS", "3"))
 # Run fixture-loop tests restricted to the cases a patch can affect.
 CASE_RESTRICT = os.environ.get("BR_CASE_RESTRICT", "1") == "1"
@@ -520,6 +522,8 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
                 continue
             probe_items.setdefault(f.path, []).extend(site.probes)
     lite_verify = set()
+    if not PROBES:
+        probe_items = {}
     if probe_items and all(not (f.imp or f.data or f.pydata or f.other or f.certain) for f in found.files) and not certain:
         all_function = all(site.scope == "function" and site.probes for f in found.files for site in (f.sites or []) if site.kind != "docstring")
         if all_function and cheap and max(probe_live_prior(i) for items in probe_items.values() for i in items) <= 0.25:
