@@ -52,6 +52,9 @@ class Maps:
         # {"lookups": {holder\tattr: {key or "*": set index}}, "traced": set index,
         #  "holders": [...], "unrecordable": [...]}
         self.keyrec = data.get("keyrec", {})
+        # Module attribute reads (tools/trace_modattrs.py): {"reads": {module\tattr: set
+        # index}, "traced": set index}
+        self.modrec = data.get("modrec", {})
         # Tests that loop over fixture cases (tools/build_cases.py): id -> [(fixture, kind)]
         self.case_tests = {}
         self.case_counts = {}

@@ -44,6 +44,11 @@ class FileReport:
     # string-keyed dict (selector/keyrefine.py may narrow them)
     imp_sites: list = field(default_factory=list)
     keyrec_sites: list = field(default_factory=list)
+    # index into site_masks -> (narrower mask, {(module, name)} bindings it may change):
+    # a module-level value edit whose runtime readers through module objects are taken
+    # from the build-time records; keyrefine applies it when the state fingerprint shows
+    # that nothing but those bindings changed
+    modrec_sites: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -332,6 +337,9 @@ class CandidateFinder:
                 mask = self._import_site_mask(rel, module, site)
                 report.imp |= mask
                 report.imp_sites.append(len(report.site_masks))
+                alt = self._module_site_alternative(rel, module, site)
+                if alt is not None:
+                    report.modrec_sites[len(report.site_masks)] = alt
                 if site.dict_keys and site.kind != "docstring" and getattr(site, "dict_order_same", False):
                     report.keyrec_sites.append(len(report.site_masks))
                 if not site.value_safe:
@@ -401,6 +409,68 @@ class CandidateFinder:
         return base & self._name_refs(names, rel, site.lines, ("object", "module", "instance"), module=module,
                                       same_binding=getattr(site, "same_binding", False),
                                       plain_value=getattr(site, "plain_value", False))
+
+    def _module_site_alternative(self, rel, module, site):
+        """For a module-level edit that only changes the value bound to plain names in
+        a sqlglot module: (mask, bindings). The mask is the M12 rule with one change:
+        attribute reads `<x>.NAME` inside functions count only for tests without a
+        module-read record; tests with one count when they read one of the bindings
+        through a module object. Bindings are (module, name) pairs that hold the value:
+        the name itself and every `from M import NAME [as A]` / star import of it,
+        transitively. Valid only if nothing else in the program state changes, which
+        keyrefine checks with the state fingerprints."""
+        maps = self.maps
+        rec = getattr(maps, "modrec", None)
+        if not rec or site.scope != "module" or not getattr(site, "same_binding", False):
+            return None
+        if not rel.startswith("sqlglot/") or not site.names or site.kind == "docstring":
+            return None
+        names = set(site.names)
+        if any(n.startswith("__") and n.endswith("__") for n in names):
+            return None
+        bindings = self._binding_group(module, names)
+        base = maps.mod_mask(rel, site.lines) | maps.func_mask(rel, site.lines)
+        if not site.lines:
+            base = self._module_tests(rel)
+        # re-exports under another name (`from M import NAME as A`) are read as `R.A`
+        refs = self._name_refs(names | {alias for _, alias in bindings}, rel, site.lines,
+                               ("object", "module", "instance"), module=module,
+                               same_binding=True, plain_value=getattr(site, "plain_value", False),
+                               module_records=bindings)
+        return base & refs, bindings
+
+    def _binding_group(self, module, names):
+        """{(module, name)} bound to the same value as `module`.NAME through
+        `from X import NAME [as A]` and `from X import *`, transitively."""
+        group = {(module, n) for n in names}
+        changed = True
+        while changed:
+            changed = False
+            modules = {m for m, _ in group}
+            for py in self._all_py_files():
+                if not py.startswith("sqlglot/"):
+                    continue
+                raw = self._source(py)
+                index = self._file_index(py, raw) if raw else None
+                if index is None:
+                    continue
+                mod = py[:-3].replace("/", ".")
+                if mod.endswith(".__init__"):
+                    mod = mod[: -len(".__init__")]
+                for base, aliases, _ in index["imports"]:
+                    if base not in modules:
+                        continue
+                    for name, asname in aliases:
+                        if name == "*":
+                            new = {(mod, n) for m, n in group if m == base}
+                        elif (base, name) in group:
+                            new = {(mod, asname or name)}
+                        else:
+                            continue
+                        if not new <= group:
+                            group |= new
+                            changed = True
+        return group
 
     def _dict_key_usage(self, keys, names=(), within=None):
         """Tests that could look up these dict entries.
@@ -535,7 +605,9 @@ class CandidateFinder:
             cache[py] = None
             return None
         imports, names, attrs, strings = [], {}, {}, []
-        for node in _ast.walk(tree):
+        stack = [(tree, False)]
+        while stack:
+            node, in_function = stack.pop()
             if isinstance(node, _ast.Constant) and isinstance(node.value, str):
                 strings.append((node.lineno, node.end_lineno or node.lineno, node.value))
             elif isinstance(node, _ast.ImportFrom):
@@ -543,13 +615,23 @@ class CandidateFinder:
             elif isinstance(node, _ast.Attribute):
                 value = node.value
                 leaf = value.id if isinstance(value, _ast.Name) else (value.attr if isinstance(value, _ast.Attribute) else None)
-                attrs.setdefault(node.attr, []).append((node.lineno, node.end_lineno or node.lineno, leaf))
+                attrs.setdefault(node.attr, []).append((node.lineno, node.end_lineno or node.lineno, leaf, in_function))
             elif isinstance(node, _ast.Name):
                 names.setdefault(node.id, []).append(node.lineno)
+            inner = in_function or isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.Lambda))
+            for child in _ast.iter_child_nodes(node):
+                # decorators, defaults and annotations run where the def statement runs
+                if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and (
+                        child in node.decorator_list or child is node.args or child is node.returns):
+                    stack.append((child, in_function))
+                elif isinstance(node, _ast.Lambda) and child is node.args:
+                    stack.append((child, in_function))
+                else:
+                    stack.append((child, inner))
         cache[py] = index = {"imports": imports, "names": names, "attrs": attrs, "strings": strings}
         return index
 
-    def _external_module_refs(self, py, raw, names, keep_import_lines=True) -> set:
+    def _external_module_refs(self, py, raw, names, keep_import_lines=True, split=False):
         """Lines of another file that can read a module-level binding of one of
         `names`, whatever module object they reach it through: the module may be
         imported under an alias (`from sqlglot import expressions as exp`, then
@@ -563,9 +645,11 @@ class CandidateFinder:
         star imports stay reads."""
         index = self._file_index(py, raw)
         if index is None:
-            return set(range(1, raw.count(b"\n") + 2))  # cannot tell: everything
+            everything = set(range(1, raw.count(b"\n") + 2))  # cannot tell: everything
+            return (everything, set()) if split else everything
         imported = set()
         hits = set()
+        runtime_attrs = set()
         star = False
         for base, aliases, lineno in index["imports"]:
             for name, asname in aliases:
@@ -579,15 +663,18 @@ class CandidateFinder:
         if star:
             imported.update(names)
         for name in names:
-            for first, last, _leaf in index["attrs"].get(name, ()):
-                hits.update(range(first, last + 1))
+            for first, last, _leaf, in_function in index["attrs"].get(name, ()):
+                if split and in_function:
+                    runtime_attrs.update(range(first, last + 1))
+                else:
+                    hits.update(range(first, last + 1))
         for name in imported:
             hits.update(index["names"].get(name, ()))
         word = re.compile(r"\b(?:" + "|".join(re.escape(n) for n in sorted(names)) + r")\b")
         for first, last, value in index["strings"]:
             if word.search(value):
                 hits.update(range(first, last + 1))
-        return hits
+        return (hits, runtime_attrs) if split else hits
 
     def _class_name_reads(self, key, names):
         """Tests that ran a line reading one of `names` through the class `key` (or a
@@ -904,9 +991,12 @@ class CandidateFinder:
         return mentioned
 
     def _name_refs(self, names, site_rel, site_lines, kinds, module=None, owner=None, same_binding=False,
-                   plain_value=False, truth_same=False, same_keys=False) -> int:
+                   plain_value=False, truth_same=False, same_keys=False, module_records=None) -> int:
         maps = self.maps
         needles = [n.encode() for n in names]
+        traced_mask = 0
+        if module_records is not None:
+            traced_mask = maps.mask(maps.modrec.get("traced"))  # tests that have a record
         alternatives = "|".join(re.escape(n) for n in sorted(names))
         pattern = re.compile(r"\b(?:" + alternatives + r")\b")
         definition = re.compile(r"^\s*(?:" + alternatives + r")\s*(?::[^=]*)?=(?!=)")
@@ -916,9 +1006,17 @@ class CandidateFinder:
             if not any(needle in raw for needle in needles):
                 continue
             if module is not None and py != site_rel:
-                hits = self._external_module_refs(py, raw, names, keep_import_lines=not same_binding)
-                if hits:
-                    mask |= self._hits_mask(py, raw, hits)
+                if module_records is None:
+                    hits = self._external_module_refs(py, raw, names, keep_import_lines=not same_binding)
+                    if hits:
+                        mask |= self._hits_mask(py, raw, hits)
+                else:
+                    hits, runtime_attrs = self._external_module_refs(py, raw, names, keep_import_lines=not same_binding,
+                                                                     split=True)
+                    if hits:
+                        mask |= self._hits_mask(py, raw, hits)
+                    if runtime_attrs:
+                        mask |= self._hits_mask(py, raw, runtime_attrs) & ~traced_mask
                 continue
             hits = set()
             bare = self._bare_annotations(py, raw)
@@ -968,6 +1066,10 @@ class CandidateFinder:
                         narrowed.add(i)
                 hits -= narrowed
             mask |= self._hits_mask(py, raw, hits)
+        if module_records is not None:
+            reads = maps.modrec.get("reads", {})
+            for mod, name in module_records:
+                mask |= maps.mask(reads.get(f"{mod}\t{name}"))
         for rel, line, regex, kind in maps.dynamic:
             if kind not in kinds:
                 continue

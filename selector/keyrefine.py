@@ -102,15 +102,17 @@ def _pinned_from_file():
 
 
 def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0) -> str:
-    """Narrow the key-record sites of `found` in place. Returns a note for the log."""
+    """Narrow the key-record and module-record sites of `found` in place, if the state
+    fingerprints allow it. Returns a note for the log."""
+    from .keyrec import state_changes
     from .verify import build_overlay
 
-    rec = getattr(maps, "keyrec", None)
-    sites = [(f, i) for f in found.files for i in getattr(f, "keyrec_sites", [])]
-    if not rec or not sites:
+    key_sites = [(f, i) for f in found.files for i in getattr(f, "keyrec_sites", [])]
+    mod_sites = [(f, i, alt) for f in found.files for i, alt in getattr(f, "modrec_sites", {}).items()]
+    if not key_sites and not mod_sites:
         return ""
     if any(c.binary for c in changes):
-        return "keys: binary change"
+        return "state: binary change"
     files = {}
     for change in changes:
         report = next((f for f in found.files if f.path == change.path), None)
@@ -120,14 +122,14 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
             files[change.old_path] = None
             continue
         if report is None or report.new_text is None:
-            return "keys: change without text"
+            return "state: change without text"
         files[change.path] = report.new_text.encode("utf-8")
     overlay = os.path.join(tmp, "keys_overlay")
     shutil.rmtree(overlay, ignore_errors=True)
     try:
         build_overlay(overlay, root, files)
     except Exception as error:  # noqa: BLE001
-        return f"keys: overlay failed ({error!r})"
+        return f"state: overlay failed ({error!r})"
     if not _PINNED:
         stored = _pinned_from_file()
         if stored is not None:
@@ -140,37 +142,54 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
     shutil.rmtree(overlay, ignore_errors=True)
     if not _PINNED:
         _PINNED.extend([results.get("p1"), results.get("p2")])
-    pinned1, pinned2 = _PINNED[0], _PINNED[1]
-    patched = results["patched"]
-    if pinned1 is None or pinned2 is None or patched is None:
-        return "keys: fingerprint unavailable"
-    from .keyrec import changed_entries
-
+    pinned1, patched = _PINNED[0], results["patched"]
+    if pinned1 is None or patched is None:
+        return "state: fingerprint unavailable"
     changed_paths = {c.path for c in changes} | {c.old_path for c in changes if c.old_path}
-    changed = changed_entries(pinned1, pinned2, patched, changed_paths, _loop_leftovers(root))
-    if changed is None:
-        return "keys: other state changed"
-    if not changed:
-        return "keys: no dict entry changed"
+    res = state_changes(pinned1, patched, changed_paths, _loop_leftovers(root))
+    if res is None:
+        return "state: unreadable change"
+    dicts, others = res
+    allowed = {f"{m}\t{n}" for _, _, (_, group) in mod_sites for m, n in group}
+    if others - allowed:
+        return "state: other values changed"
+    # Changed dict entries: key records narrow the key sites when every changed dict
+    # has usable records; a changed dict without them is only acceptable when it is one
+    # of the module bindings (whose readers the module sites' masks already cover).
+    rec = getattr(maps, "keyrec", None) or {}
     unrecordable = set(rec.get("unrecordable", ()))
     holders = set(rec.get("holders", ()))
     lookups = rec.get("lookups", {})
     narrowed = 0
-    for holder, keys in changed.items():
+    key_ok = bool(dicts) and bool(key_sites)
+    for holder, keys in dicts.items():
         if holder in unrecordable or holder not in holders:
-            return f"keys: {holder} has no usable records"
+            if holder not in allowed:
+                return f"state: {holder} has no usable records"
+            key_ok = False
+            continue
         by_key = lookups.get(holder, {})
         for k in set(keys) | {"*"}:
             narrowed |= maps.mask(by_key.get(k))
-    untraced = maps.all_mask & ~maps.mask(rec.get("traced"))
-    keep = narrowed | untraced
-    for report, index in sites:
-        report.site_masks[index] &= keep
-        imp = 0
-        for j in getattr(report, "imp_sites", []):
-            imp |= report.site_masks[j]
-        report.imp = imp
-    return f"keys: {sum(len(k) for k in changed.values())} entries of {len(changed)} dicts"
+    notes = []
+    if key_ok:
+        keep = narrowed | (maps.all_mask & ~maps.mask(rec.get("traced")))
+        for report, index in key_sites:
+            report.site_masks[index] &= keep
+        notes.append(f"{sum(len(k) for k in dicts.values())} entries of {len(dicts)} dicts")
+    elif key_sites and not mod_sites:
+        return "state: no usable dict entry change"
+    for report, index, (alt, _group) in mod_sites:
+        report.site_masks[index] &= alt
+    if mod_sites:
+        notes.append(f"{len(mod_sites)} module bindings through records")
+    for report in found.files:
+        if getattr(report, "keyrec_sites", None) or getattr(report, "modrec_sites", None):
+            imp = 0
+            for j in getattr(report, "imp_sites", []):
+                imp |= report.site_masks[j]
+            report.imp = imp
+    return "state: " + ", ".join(notes)
 
 
 def build_pinned(root: str, out: str) -> None:

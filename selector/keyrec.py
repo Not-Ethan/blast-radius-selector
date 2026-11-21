@@ -387,3 +387,35 @@ def changed_entries(pinned1: dict, pinned2: dict, patched: dict, changed_paths, 
             continue
         return None
     return out
+
+
+def state_changes(pinned1: dict, patched: dict, changed_paths, loop_leftover):
+    """Like changed_entries, but non-dict changes are returned instead of rejected:
+    ({holder\tattr: changed keys} for dicts, {holder\tattr} for other values), or None
+    for an import error, an attribute that appeared or disappeared, or a value that
+    could not be fingerprinted. Same order rules as changed_entries."""
+    if patched.get("import_errors") != pinned1.get("import_errors"):
+        return None
+    s1, p = pinned1["state"], patched["state"]
+    dicts: dict = {}
+    others: set = set()
+    for key in set(s1) | set(p):
+        a, b = s1.get(key), p.get(key)
+        if a == b:
+            continue
+        if a is None or b is None or "u" in a or "u" in b:
+            return None
+        if "d" in a and "d" in b:
+            da, db = a["d"], b["d"]
+            keys = {k for k in set(da) | set(db) if da.get(k) != db.get(k)}
+            if keys:
+                dicts[key] = keys
+            continue
+        if "d" not in a and "d" not in b and a.get("o", a.get("v")) == b.get("o", b.get("v")):
+            continue
+        base = key.split("\t", 1)[0].split(":", 1)[0].replace(".", "/")
+        if "d" not in a and "d" not in b and loop_leftover(key) \
+                and base + ".py" not in changed_paths and base + "/__init__.py" not in changed_paths:
+            continue
+        others.add(key)
+    return dicts, others

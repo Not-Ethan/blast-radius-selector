@@ -79,7 +79,8 @@ def main():
                     raise ValueError("unparsed patch or repeated file section")
                 found = finder.analyze(changes)
                 key_note = ""
-                if not found.unknown and any(getattr(f, "keyrec_sites", None) for f in found.files) \
+                if not found.unknown and any(getattr(f, "keyrec_sites", None) or getattr(f, "modrec_sites", None)
+                                             for f in found.files) \
                         and time.monotonic() - START < total_limit * 0.3:
                     try:
                         # never let the fingerprints eat into the analysis budget
