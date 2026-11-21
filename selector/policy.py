@@ -338,6 +338,14 @@ def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, i
             continue
         if plan.inert() or plan.lite_rest_cpu > MAX_VERIFY_CPU:
             continue
+        live = bool(plan.failed) or "__incomplete__" in stats or any(v["infected"] for v in stats.values())
+        if live:
+            expensive_left = plan.conditional - plan.lite_rest
+            if expensive_left:
+                continue  # expensive tests go in anyway; the rest rides along cheaply
+            rest_ms = {n: int(seconds_of[n] * 1000 + 0.5) for n in plan.lite_rest}
+            if plan.lite_rest_cpu >= pack(sorted(plan.lite_rest), rest_ms)[1] / 1000.0:
+                continue  # verifying the rest would cost more than including it
         rest = sorted(plan.lite_rest)
         ids = [id_of[n] for n in rest]
         limits = {id_of[n]: max(10.0, 6.0 * seconds_of[n] + 5.0) for n in rest}
