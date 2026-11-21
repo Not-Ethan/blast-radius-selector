@@ -1,17 +1,16 @@
 
 # Candidate submissions (branch br-opt)
 
-> **Final entry if the cutoff were now: M17 (2963170)** — published, fresh-pull checked,
-> practice 166.2 s with 0 missed.
+> **Final entry if the cutoff were now: M19 (e73afb6)** — published (public d96e97c),
+> fresh-pull checked, practice 165.2 s (140.205 simulated, same as M17, so its state
+> comparisons narrowed on the scorer) with 0 missed.
 >
-> **Do not submit M19 (e73afb6), M20 or M21: no candidate is recommended next right
-> now.** In the container (but not natively) every state comparison falls back because
-> `_CANONICALIZE_TYPES`, a tuple built from a set of classes, has a different order in
-> the build-time pinned run and the run-time patched run (class hashes are addresses;
-> the build's two seed runs happened to agree, so it was not marked seed-dependent).
-> Fallback is sound (wider masks, 0 misses in the Docker checks) but loses M17's
-> narrowing, so on the scorer M19-M21 would cost about M13's simulated seconds. Fix in
-> progress (M22: build-time runs with shifted memory layout).
+> No candidate is recommended next yet. Known robustness issue: in the local emulated
+> container (not natively, and evidently not on the scorer) the state comparisons fall
+> back because tuples/dicts built from sets of classes (address-hashed) are ordered
+> differently in the build-time pinned run and the run-time patched run, and the
+> build's two seed runs agreed, so they were not marked seed-dependent. Fallback is
+> sound (wider masks) but loses the narrowing; a fix is being tested.
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
