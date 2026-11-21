@@ -123,7 +123,7 @@ all coverage-based selection: state shared across cases inside one process.
 CPU scale: also tried 0.7 with M3 on val2: -7.7 s simulated, +14.1 s local CPU, i.e.
 break-even at a 0.5 scorer/local CPU ratio, so the scale stays at 1.0.
 
-## M4 — re-run only the TPC-DS cases whose optimizer output changed (recommended next)
+## M4 — re-run only the TPC-DS cases whose optimizer output changed (submitted: 165.0)
 
 Commit: **0fdd4d8** (branch br-opt). Builds on M3. Docker re-run on exactly this tree
 (valid, 0 misses, 131 s wall emulated).
@@ -150,7 +150,7 @@ Real result of M4 (SUBMISSIONS.md): 165.0 s = 143.412 simulated + 21.4-21.7 CPU,
 Scorer/local CPU ratio: practice 21.6 s / 40 commits = 0.54 s per commit vs 0.91 s per
 commit locally on the kit sample (27.3 s / 30) -> about 0.6 (0.4 against val2).
 
-## M5 — import checks (soundness), re-export-aware reads, dialect-typed coverage, stage abort (recommended next)
+## M5 — import checks (soundness), re-export-aware reads, dialect-typed coverage, stage abort (superseded by M6)
 
 Commit: **7a966cc** (branch br-opt). Builds on M4. Docker re-run on exactly this tree
 (valid, 0 misses).
@@ -189,3 +189,40 @@ load; run alone on the patched tree it passes (45 s). Label corrected, limits wi
 Expected on practice: CPU slightly down; simulated down only where module-level data,
 dialect settings or class-level values are edited. Main value: the import-check
 soundness fix for unseen kinds of change in the final.
+
+## M6 — function-scoped computed-name reads, typed records for the slowest tests (recommended next; includes M5)
+
+Commit: **d1cc829** (branch br-opt). Builds on M5 (so it carries M5's import-check
+soundness fix). Docker re-run on exactly this tree (valid, 0 misses).
+
+What changed on top of M5:
+* A computed-name read (`getattr`/`vars`/`__dict__`) inside a function or lambda
+  only counts for tests that ran that function; the module body executing the same
+  line just defines it. The executor's `EXTRACT` lambda (`getattr(e, this)`) shares its
+  line with a module-level dict, so before, every module- or class-level edit
+  reachable from the executor also selected TPC-DS execution.
+* Typed coverage now also has records for test_execute_tpcds and test_max_nodes
+  (they were skipped before, which kept them as candidates for dialect-setting edits).
+* One cached AST index per file for name/import/attribute scans: candidate sets
+  identical to M5 on all 420 local commits, ~30% less analysis CPU.
+
+| set | M5 sim | M6 sim | misses | M6 local CPU (M5) |
+| --- | ---: | ---: | ---: | ---: |
+| kit sample (30) | 106.3 | 106.3 | 0 | 20.5 (23.8) |
+| val1, M5's 141 | 690.4 | **667.3** | 0 | |
+| val1 now 199 (+58 pytest labels) | n/a | 1120.8 (oracle 717.9) | 0 | 175.9 |
+| val2 (68) | 226.7 | 226.7 | 0 | 70.9 (88.5) |
+| val4 (36) | 87.0 | 87.0 | 0 | 78.8 (87.9) |
+| val3 (40 class-level) | 350.0 | **292.0** | 0 | 45.0 (42.8) |
+| val5 (64 new kinds) | 209.7 | 209.7 | 0 | 10.2 (13.8) |
+| val6, M5's 41 official-style | 145.3 | **96.4** | 0 | |
+| val6 now 57 | n/a | 186.9 (oracle 159.6) | 0 | 36.8 |
+
+(Local CPU varies with machine load; compare within a row only roughly.)
+
+Expected on practice: simulated down for module-level data and dialect/class-setting
+edits that TPC-DS used to be dragged into (val6 7bef and 9q8d: 25.5 s each before),
+CPU slightly down. Risk: the function-scope rule relies on line coverage separating
+function code from module code (the tracer records them separately) and on locating
+the getattr/vars/__dict__ call on that line (a line where none is found keeps the old
+rule).
