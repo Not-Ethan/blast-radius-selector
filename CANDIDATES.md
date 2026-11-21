@@ -1,26 +1,16 @@
 
 # Candidate submissions (branch br-opt)
 
-> **Final entry if the cutoff were now: M22 (52f588a)** — published (public 497a3d6),
-> fresh-pull checked, practice 160.4 s (140.205 simulated + 20.1-22.2 CPU), 0 missed.
+> **Final entry if the cutoff were now: M23 (071cab9)** — published (public e88ad91),
+> practice **151.6 s (132.679 simulated + 18.86-18.92 CPU), 0 missed**: our best score and
+> sound under the per-test (isolated) reading of the rules. Against M22 (140.205 + 20.1-22.2)
+> the container-order fix (build-time pinned fingerprints with shifted memory layouts) bought
+> 7.5 s simulated and 1.3 s CPU: the state comparisons now narrow on the scorer instead of
+> falling back. Board then: 1st 114.6, 10th 128.3, 20th 137.7, 30th 143.2; we are 41st of 344.
+> **Known miss class in M23 (and every earlier candidate): state leaking between tests in
+> one pytest process** (see "State leak" below); a fix (M24) is in validation.
 >
-> **Recommended next: M23 (071cab9)** — M22 with the container-order fix (build-time
-> pinned fingerprints with shifted memory layouts, run one at a time). Decision-time
-> code is identical to M22. Validated inside the image: run-time comparisons of the
-> unmodified tree now report no change (before: 47 values differed and every
-> comparison fell back); in the M23 container run gbav's comparison narrowed (M22's
-> fell back). Docker check on the exact tree: valid, 0 misses; from-scratch build
-> 1249 s locally under heavy load (emulated; build_pinned alone 400 s emulated, about
-> 4 x 2 s natively), simulated 121.616 s because the machine was loaded by another
-> process and the emulated run hit its time budget (the light-probe second round of
-> 66ks was killed; M22's check on a quieter machine finished at 93 s with 96.839).
-> Expect M22's CPU; if the simulated cost falls below 140.205, the scorer was falling
-> back like the emulated container. Earlier note on that issue: in the local emulated
-> container (not natively, and evidently not on the scorer) the state comparisons fall
-> back because tuples/dicts built from sets of classes (address-hashed) are ordered
-> differently in the build-time pinned run and the run-time patched run, and the
-> build's two seed runs agreed, so they were not marked seed-dependent. Fallback is
-> sound (wider masks) but loses the narrowing; a fix is being tested.
+> **Recommended next: none yet** (M24, the state-leak fix, is being validated).
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
