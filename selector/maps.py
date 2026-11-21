@@ -63,7 +63,7 @@ class Maps:
         self.dynamic = []
         self.test_spans = {}
         # attribute reads through a class spelled by name (tools/add_xreads.py):
-        # class key -> [(file, line)]; None when the table is missing
+        # class key -> [(file, line, attribute)]; None when the table is missing
         self.xreads = None
         if os.path.exists(CLASSINFO):
             with gzip.open(CLASSINFO, "rt") as handle:
@@ -73,8 +73,8 @@ class Maps:
             xreads = info.pop("__xreads__", None)
             if xreads is not None:
                 self.xreads = {}
-                for rel, line, key in xreads:
-                    self.xreads.setdefault(key, []).append((rel, line))
+                for rel, line, key, attr in xreads:
+                    self.xreads.setdefault(key, []).append((rel, line, attr))
             self.classes = info
         self._children = None
         self.setup_cost = {}

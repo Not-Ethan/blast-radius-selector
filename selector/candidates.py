@@ -369,7 +369,7 @@ class CandidateFinder:
             if usage is not None and os.environ.get("BR_CLASS_USAGE", "1") == "0":
                 usage = maps.all_mask  # measurement switch: no class-usage narrowing
             if usage is not None:
-                cross = self._class_name_reads(f"{module}:{site.class_qual}")
+                cross = self._class_name_reads(f"{module}:{site.class_qual}", names)
                 usage = None if cross is None else usage | cross
             if usage is None:
                 return base
@@ -582,19 +582,25 @@ class CandidateFinder:
                 hits.update(range(first, last + 1))
         return hits
 
-    def _class_name_reads(self, key):
-        """Tests that ran a line reading an attribute through the class `key` (or a
+    def _class_name_reads(self, key, names):
+        """Tests that ran a line reading one of `names` through the class `key` (or a
         subclass) spelled by name (`MySQL.TIME_MAPPING` in Presto's class body,
         `Hive.INVERSE_TIME_MAPPING` in PrestoGenerator): such a read needs no instance,
-        so it is a use of the class the instantiation records do not show. None when
-        the table of such reads is missing (then the class usage is not used)."""
+        so it is a use of the class the instantiation records do not show. A read of
+        another attribute through the class (`MySQL.TIME_FORMAT`) cannot read NAME
+        (nested chains are recorded per class: `MySQL.Tokenizer.KEYWORDS` is a read of
+        `Tokenizer` through MySQL and of `KEYWORDS` through MySQL.Tokenizer). Without
+        names (a class header) every such read counts. None when the table of such
+        reads is missing (then the class usage is not used)."""
         maps = self.maps
         if maps.xreads is None:
             return None
         group = maps.descendants(key) | {key}
         mask = 0
         for k in group:
-            for rel, line in maps.xreads.get(k, ()):
+            for rel, line, attr in maps.xreads.get(k, ()):
+                if names and attr not in names:
+                    continue
                 mask |= maps.func_mask(rel, [line]) | maps.mod_mask(rel, [line])
         return mask
 

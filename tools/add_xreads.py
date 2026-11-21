@@ -2,7 +2,7 @@
 
 Every attribute access whose receiver is a class spelled by name (`MySQL.TIME_MAPPING`,
 `Hive.Tokenizer.KEYWORDS`, `TimeUnit.VAR_LIKE`) in sqlglot/, sqlglotc/ or tests/, resolved
-against the live modules of the pinned checkout: `__xreads__ = [[file, line, class key]]`.
+against the live modules of the pinned checkout: `__xreads__ = [[file, line, class key, attribute]]`.
 A class attribute read this way needs no instance of the class, so the selector counts
 the tests that ran such a line as users of the class (and of its subclasses' readers).
 Enum classes are left out (their members are read everywhere; edits of an enum body are
@@ -95,9 +95,9 @@ def main():
                 if not module_name.startswith("sqlglot"):
                     continue
                 key = f"{module_name}:{obj.__qualname__}"
-                rows.add((rel, node.end_lineno or node.lineno, key))
+                rows.add((rel, node.end_lineno or node.lineno, key, node.attr))
                 if node.lineno != (node.end_lineno or node.lineno):
-                    rows.add((rel, node.lineno, key))
+                    rows.add((rel, node.lineno, key, node.attr))
     info["__xreads__"] = sorted(rows)
     with gzip.open(out, "wt", compresslevel=9) as handle:
         json.dump(info, handle, separators=(",", ":"))
