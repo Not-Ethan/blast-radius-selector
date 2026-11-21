@@ -52,6 +52,11 @@ class Site:
     # entry keys involved, as ("str", text) / ("attr", name) / ("name", id) /
     # ("other",). None when the change is not confined to dict entries.
     dict_keys: list | None = None
+    # For a function-scope change confined to side-effect-free expressions:
+    # [(old expression source, (lineno, col, end_lineno, end_col) of the new
+    # expression in the new file, used as a truth value?)]. The verifier can
+    # evaluate old and new side by side to see whether they ever differ.
+    probes: list | None = None
 
 
 @dataclass
@@ -360,6 +365,7 @@ class _Differ:
             return
         if ctx.scope == "function":
             self.add(ctx, "stmt", _span(o), detail=type(o).__name__)
+            self.sites[-1].probes = _probes(o, n)
         else:
             self._check_compiles(n)
             self._import_time_stmt(o, n, ctx)
@@ -372,6 +378,7 @@ class _Differ:
         if not header_same:
             if ctx.scope == "function":
                 self.add(ctx, "header", _header_span(o), detail=f"{type(o).__name__} header")
+                self.sites[-1].probes = _probes(o, n, header_only=True)
             else:
                 self._import_time_stmt(o, n, ctx, header_only=True)
         for f in BODY_FIELDS:
@@ -470,6 +477,121 @@ class _Differ:
         if any(_dump_any(getattr(o, f, None)) != _dump_any(getattr(n, f, None)) for f in header_fields):
             self.add(ctx, "class-header", _header_span(o), {o.name, n.name}, "class header")
         self.body(o.body, n.body, ctx.enter_class(o), o)
+
+
+SAFE_CALLS = {"isinstance", "issubclass", "len", "type", "bool", "callable", "hasattr"}
+# Methods without side effects that sqlglot conditions commonly call (dict.get,
+# str predicates, Expression.text/find/is_type).
+SAFE_METHODS = {"get", "startswith", "endswith", "upper", "lower", "strip", "lstrip", "rstrip",
+                "isdigit", "isalpha", "isupper", "islower", "is_type", "text", "find"}
+FORBIDDEN = (ast.Await, ast.Yield, ast.YieldFrom, ast.NamedExpr, ast.Lambda, ast.Starred,
+             ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp, ast.JoinedStr)
+
+
+def _probe_safe(node) -> bool:
+    for child in ast.walk(node):
+        if isinstance(child, FORBIDDEN):
+            return False
+        if isinstance(child, ast.Call):
+            func = child.func
+            if not ((isinstance(func, ast.Name) and func.id in SAFE_CALLS)
+                    or (isinstance(func, ast.Attribute) and func.attr in SAFE_METHODS)):
+                return False
+        if isinstance(child, ast.Name) and child.id in ("super", "__class__"):
+            return False
+    return True
+
+
+def _diff_pairs(o, n, parent, out):
+    """Minimal differing (old expr, new expr, new parent) triples, or None if
+    some difference is not between two expressions."""
+    if out is None:
+        return None
+    if type(o) is not type(n):
+        if isinstance(o, ast.expr) and isinstance(n, ast.expr):
+            out.append((o, n, parent))
+            return out
+        return None
+    if not isinstance(o, ast.AST):
+        return out if o == n else None
+    for name in o._fields:
+        a, b = getattr(o, name, None), getattr(n, name, None)
+        if isinstance(a, list) and isinstance(b, list):
+            if len(a) != len(b):
+                if isinstance(o, ast.expr):
+                    out.append((o, n, parent))
+                    return out
+                return None
+            for x, y in zip(a, b):
+                if isinstance(x, ast.AST) and isinstance(y, ast.AST):
+                    if dump(x) != dump(y):
+                        if not hasattr(x, "lineno") or not isinstance(x, (ast.expr, ast.stmt, ast.comprehension, ast.keyword, ast.arg)):
+                            if isinstance(o, ast.expr):
+                                out.append((o, n, parent))
+                                return out
+                            return None
+                        if _diff_pairs(x, y, n, out) is None:
+                            return None
+                elif x != y:
+                    if isinstance(o, ast.expr):
+                        out.append((o, n, parent))
+                        return out
+                    return None
+        elif isinstance(a, ast.AST) and isinstance(b, ast.AST):
+            if dump(a) != dump(b):
+                if not hasattr(a, "lineno") or not isinstance(a, (ast.expr, ast.stmt, ast.comprehension, ast.keyword, ast.arg)):
+                    # operator or context node: the containing expression differs
+                    if isinstance(o, ast.expr):
+                        out.append((o, n, parent))
+                        return out
+                    return None
+                if _diff_pairs(a, b, n, out) is None:
+                    return None
+        elif _dump_any(a) != _dump_any(b):
+            if isinstance(o, ast.expr):
+                out.append((o, n, parent))
+                return out
+            return None
+    return out
+
+
+def _probes(o, n, header_only=False):
+    if header_only:
+        olds = [getattr(o, f) for f in o._fields if f not in BODY_FIELDS]
+        news = [getattr(n, f) for f in n._fields if f not in BODY_FIELDS]
+        pairs = []
+        for a, b in zip(olds, news):
+            if isinstance(a, ast.AST) and isinstance(b, ast.AST):
+                if dump(a) != dump(b):
+                    pairs = _diff_pairs(a, b, n, pairs)
+            elif _dump_any(a) != _dump_any(b):
+                return None
+            if pairs is None:
+                return None
+    else:
+        pairs = _diff_pairs(o, n, None, [])
+    if not pairs or len(pairs) > 3:
+        return None
+    out = []
+    for old, new, parent in pairs:
+        if not (_probe_safe(old) and _probe_safe(new)):
+            return None
+        if not isinstance(getattr(new, "ctx", ast.Load()), ast.Load) or not isinstance(getattr(old, "ctx", ast.Load()), ast.Load):
+            return None
+        if isinstance(parent, (ast.comprehension,)) or isinstance(new, ast.Slice):
+            return None
+        # Only a condition's truth value matters; anything else (including an
+        # operand of and/or, whose value can be returned) is compared strictly.
+        truth = isinstance(parent, (ast.If, ast.While, ast.IfExp, ast.Assert)) and parent.test is new
+        if isinstance(parent, ast.UnaryOp) and isinstance(parent.op, ast.Not):
+            truth = True
+        try:
+            old_src = ast.unparse(old)
+            new_src = ast.unparse(new)
+        except Exception:  # noqa: BLE001
+            return None
+        out.append((old_src, (new.lineno, new.col_offset, new.end_lineno, new.end_col_offset), bool(truth), new_src))
+    return out
 
 
 def _key_descriptor(key):

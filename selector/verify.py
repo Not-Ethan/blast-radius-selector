@@ -112,7 +112,181 @@ def _rehome_modules(root: str, overlay: str, warm: bool):
     importlib.invalidate_caches()
 
 
-def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict, check_modules: list[str], out_fd: int, memory_limit: int | None, warm: bool = False):
+PROBE_STATS: dict = {}
+
+
+def _install_probes(overlay: str, probes: dict):
+    """Compile patched modules so each probed expression evaluates the old and
+    the new version side by side and records whether they ever differ."""
+    import ast
+    import builtins
+    import importlib.abc
+    import importlib.util
+
+    current = {"test": None}
+
+    def same(old, new, truth):
+        (ov, oe), (nv, ne) = old, new
+        if (oe is None) != (ne is None):
+            return False
+        if oe is not None:
+            return type(oe) is type(ne)
+        if truth:
+            try:
+                return bool(ov) == bool(nv)
+            except BaseException:  # noqa: BLE001
+                return False
+        if ov is nv:
+            return True
+        try:
+            return type(ov) is type(nv) and bool(ov == nv)
+        except BaseException:  # noqa: BLE001
+            return False
+
+    def probe(key, old_thunk, new_thunk, truth):
+        try:
+            new = (new_thunk(), None)
+        except BaseException as error:  # noqa: BLE001
+            new = (None, error)
+        try:
+            old = (old_thunk(), None)
+        except BaseException as error:  # noqa: BLE001
+            old = (None, error)
+        stats = PROBE_STATS.setdefault(key, {"count": 0, "infected": 0, "tests": set()})
+        stats["count"] += 1
+        stats["tests"].add(current["test"])
+        if not same(old, new, truth):
+            stats["infected"] += 1
+        if new[1] is not None:
+            raise new[1]
+        return new[0]
+
+    import enum
+    import operator
+
+    ops = {"Is": operator.is_, "IsNot": operator.is_not, "Eq": operator.eq, "NotEq": operator.ne}
+    plain = (type(None), bool, int, float, complex, str, bytes, tuple, list, dict, set, frozenset, type)
+
+    def user_eq(value):
+        kind = type(value)
+        if isinstance(value, plain) and kind in plain:
+            return False
+        if isinstance(value, enum.Enum):
+            eq = kind.__eq__
+            return not (eq is object.__eq__ or eq is enum.Enum.__eq__ or getattr(eq, "__objclass__", None) in plain)
+        return kind.__eq__ is not object.__eq__
+
+    def probe_cmp(key, operands_thunk, old_op, new_op, truth):
+        left, right = operands_thunk()
+        stats = PROBE_STATS.setdefault(key, {"count": 0, "infected": 0, "tests": set()})
+        stats["count"] += 1
+        stats["tests"].add(current["test"])
+        unsafe = (right is not None and user_eq(left)) or (left is not None and user_eq(right))
+        try:
+            new = (ops[new_op](left, right), None)
+        except BaseException as error:  # noqa: BLE001
+            new = (None, error)
+        try:
+            old = (ops[old_op](left, right), None)
+        except BaseException as error:  # noqa: BLE001
+            old = (None, error)
+        if unsafe or not same(old, new, truth):
+            stats["infected"] += 1
+        if new[1] is not None:
+            raise new[1]
+        return new[0]
+
+    builtins.__br_probe__ = probe
+    builtins.__br_probe_cmp__ = probe_cmp
+    builtins.__br_probe_current__ = current
+
+    def transform(tree, rel, items):
+        wanted = {}
+        for k, item in enumerate(items):
+            old_src, pos, truth = item[0], item[1], item[2]
+            wanted[tuple(pos)] = (f"{rel}:{k}", old_src, truth)
+
+        class Rewriter(ast.NodeTransformer):
+            def generic_visit(self, node):
+                super().generic_visit(node)
+                if isinstance(node, ast.expr):
+                    pos = (node.lineno, node.col_offset, node.end_lineno, node.end_col_offset)
+                    if pos in wanted:
+                        key, old_src, truth = wanted.pop(pos)
+                        old = ast.parse(old_src, mode="eval").body
+                        no_args = ast.arguments(posonlyargs=[], args=[], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[])
+                        identity_swap = (
+                            isinstance(old, ast.Compare) and isinstance(node, ast.Compare)
+                            and len(old.ops) == len(node.ops) == 1
+                            and {type(old.ops[0]), type(node.ops[0])} in ({ast.Is, ast.Eq}, {ast.IsNot, ast.NotEq})
+                            and ast.dump(old.left) == ast.dump(node.left)
+                            and ast.dump(old.comparators[0]) == ast.dump(node.comparators[0])
+                        )
+                        if identity_swap:
+                            # Evaluate the operands once and flag comparisons whose
+                            # == runs user code (e.g. structural equality of two
+                            # expressions): their cost and effects are not "inert".
+                            operands = ast.Tuple(elts=[node.left, node.comparators[0]], ctx=ast.Load())
+                            call = ast.Call(
+                                func=ast.Name(id="__br_probe_cmp__", ctx=ast.Load()),
+                                args=[ast.Constant(key), ast.Lambda(args=no_args, body=operands),
+                                      ast.Constant(type(old.ops[0]).__name__), ast.Constant(type(node.ops[0]).__name__),
+                                      ast.Constant(truth)],
+                                keywords=[],
+                            )
+                        else:
+                            call = ast.Call(
+                                func=ast.Name(id="__br_probe__", ctx=ast.Load()),
+                                args=[ast.Constant(key), ast.Lambda(args=no_args, body=old), ast.Lambda(args=no_args, body=node), ast.Constant(truth)],
+                                keywords=[],
+                            )
+                        for sub in ast.walk(call):
+                            if sub is not node and not (hasattr(sub, "lineno") and sub in ast.walk(node)):
+                                ast.copy_location(sub, node)
+                        return call
+                return node
+
+        tree = Rewriter().visit(tree)
+        ast.fix_missing_locations(tree)
+        return tree, not wanted
+
+    modules = {}
+    for rel, items in probes.items():
+        name = module_name(rel)
+        if name:
+            modules[name] = (rel, items)
+
+    class ProbeLoader(importlib.abc.Loader):
+        def __init__(self, rel, items, path):
+            self.rel, self.items, self.path = rel, items, path
+
+        def create_module(self, spec):
+            return None
+
+        def exec_module(self, module):
+            with open(self.path, "rb") as handle:
+                source = handle.read()
+            tree = ast.parse(source, self.path)
+            tree, complete = transform(tree, self.rel, self.items)
+            if not complete:
+                PROBE_STATS.setdefault("__incomplete__", {"count": 0, "infected": 1, "tests": set()})
+            exec(compile(tree, self.path, "exec"), module.__dict__)
+
+    class ProbeFinder(importlib.abc.MetaPathFinder):
+        def find_spec(self, name, path, target=None):
+            if name not in modules:
+                return None
+            rel, items = modules[name]
+            file_path = os.path.join(overlay, rel)
+            search = [os.path.dirname(file_path)] if rel.endswith("__init__.py") else None
+            return importlib.util.spec_from_file_location(name, file_path, loader=ProbeLoader(rel, items, file_path),
+                                                          submodule_search_locations=search)
+
+    sys.meta_path.insert(0, ProbeFinder())
+    return current
+
+
+def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict, check_modules: list[str], out_fd: int, memory_limit: int | None, warm: bool = False, probes: dict | None = None):
     result = {"failed": [], "import_errors": {}, "durations": {}, "error": None}
     try:
         if memory_limit:
@@ -133,7 +307,12 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
         sys.stderr = open(os.devnull, "w")
         import importlib
 
+        from selector import runner
         from selector.runner import run_tests
+
+        if probes:
+            current = _install_probes(overlay, probes)
+            runner.ON_START = lambda node: current.__setitem__("test", node)
 
         for name in check_modules:
             signal.signal(signal.SIGALRM, _raise_timeout)
@@ -147,6 +326,8 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
         failed, durations = run_tests(tests, limit_of=lambda node: limits.get(node, 30.0))
         result["failed"] = sorted(failed)
         result["durations"] = {k: round(v, 4) for k, v in durations.items()}
+        result["probes"] = {k: {"count": v["count"], "infected": v["infected"], "tests": len(v["tests"])}
+                            for k, v in PROBE_STATS.items()}
     except BaseException as error:  # noqa: BLE001
         result["error"] = repr(error)[:500]
     data = json.dumps(result).encode()
@@ -155,6 +336,26 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
         written = os.write(out_fd, view)
         view = view[written:]
     os.close(out_fd)
+
+
+_TICKS = os.sysconf("SC_CLK_TCK") if hasattr(os, "sysconf") else 100
+
+
+def _cpu_seconds(pid: int):
+    """User+system CPU seconds of a running child, or None if unknown."""
+    try:
+        with open(f"/proc/{pid}/stat", "rb") as handle:
+            fields = handle.read().rsplit(b")", 1)[1].split()
+        return (int(fields[11]) + int(fields[12])) / _TICKS
+    except (OSError, IndexError, ValueError):
+        pass
+    try:
+        import psutil
+
+        times = psutil.Process(pid).cpu_times()
+        return times.user + times.system
+    except Exception:  # noqa: BLE001
+        return None
 
 
 class _ImportTimeout(BaseException):
@@ -166,8 +367,9 @@ def _raise_timeout(signum, frame):
 
 
 class Job:
-    def __init__(self, key, files, tests, limits, check_modules, budget, warm=False):
+    def __init__(self, key, files, tests, limits, check_modules, budget, warm=False, probes=None):
         self.warm = warm
+        self.probes = probes
         self.key = key
         self.files = files
         self.tests = tests
@@ -208,7 +410,7 @@ def run_jobs(jobs: list[Job], root: str, tmp_base: str, parallel: int, deadline:
                 os.close(read_fd)
                 code = 0
                 try:
-                    _child(overlay, root, job.files, job.tests, job.limits, job.check_modules, write_fd, memory_limit, job.warm)
+                    _child(overlay, root, job.files, job.tests, job.limits, job.check_modules, write_fd, memory_limit, job.warm, job.probes)
                 except BaseException:  # noqa: BLE001
                     code = 1
                 os._exit(code)
@@ -257,7 +459,12 @@ def run_jobs(jobs: list[Job], root: str, tmp_base: str, parallel: int, deadline:
                         f"{' ERROR ' + str(job.result.get('error')) if job.result and job.result.get('error') else ''}"
                         f"{' IMPORT ' + str(list(job.result.get('import_errors', {}))) if job.result and job.result.get('import_errors') else ''}")
                 continue
-            over_budget = now - job.started > job.budget
+            # Budgets are CPU seconds of the child (a loaded machine stretches
+            # wall time without making a run any more expensive); a child stuck
+            # off-CPU is still stopped after a generous wall-clock allowance.
+            elapsed = now - job.started
+            used = _cpu_seconds(pid)
+            over_budget = (used if used is not None else elapsed) > job.budget or elapsed > 3 * job.budget + 60
             if over_budget or now > deadline:
                 try:
                     os.kill(pid, signal.SIGKILL)

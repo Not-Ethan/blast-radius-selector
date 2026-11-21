@@ -16,6 +16,9 @@ import time
 import unittest
 
 
+ON_START = None  # optional callback(node id) when a test starts
+
+
 class TestTimeout(BaseException):
     """Raised inside a test that ran past its time limit."""
 
@@ -42,6 +45,8 @@ class RecordingResult(unittest.TestResult):
     def startTest(self, test):
         super().startTest(test)
         self._current = self._node(test)
+        if ON_START is not None:
+            ON_START(self._current)
         self._started = time.monotonic()
         self._cpu_started = time.process_time()
         limit = self.limit_of(self._current)

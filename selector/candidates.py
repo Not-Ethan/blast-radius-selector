@@ -30,6 +30,7 @@ class FileReport:
     func: int = 0  # function-scope coverage candidates
     imp: int = 0  # import-time candidates
     data: int = 0  # data-file readers
+    pydata: int = 0  # tests that read a changed .py file as text
     other: int = 0
     sites: list = field(default_factory=list)
     new_text: str | None = None
@@ -51,7 +52,7 @@ class CommitCandidates:
     def possible(self) -> int:
         m = 0
         for f in self.files:
-            m |= f.certain | f.func | f.imp | f.data | f.other
+            m |= f.certain | f.func | f.imp | f.data | f.pydata | f.other
         return m
 
 
@@ -271,7 +272,7 @@ class CandidateFinder:
         new_raw = new_text.encode("utf-8")
         new_src = decode_source(new_raw)
         readers = maps.open_mask(rel)
-        report.data |= readers
+        report.pydata |= readers
         if new_src is None:
             report.detail = "undecodable"
             report.certain |= self._module_tests(rel)
@@ -358,7 +359,9 @@ class CandidateFinder:
             return cand
         if not names or dunder:
             return base
-        return base & self._name_refs(names, rel, site.lines, ("object", "module", "instance"))
+        # A module-level name is read by this module's own code, or by modules
+        # that reach it through this module (import it, or name it).
+        return base & self._name_refs(names, rel, site.lines, ("object", "module", "instance"), module=module)
 
     def _dict_key_usage(self, keys, names=(), within=None):
         """Tests that could look up these dict entries.
@@ -447,6 +450,108 @@ class CandidateFinder:
                 mask |= maps.mask(k)
         return mask
 
+    def _hits_mask(self, py, raw, hits) -> int:
+        """Coverage of lines that read a changed name. A read at import time
+        inside an entry of a class-level dict literal (FUNCTIONS = {"DATEADD":
+        build(..., unit_mapping=NAME)}) only matters where that entry is used,
+        so it is narrowed like a change to that entry."""
+        maps = self.maps
+        mask = maps.func_mask(py, hits)
+        mod_hits = [h for h in hits if maps.mod_mask(py, [h])]
+        if not mod_hits:
+            return mask
+        entries = self._dict_entries(py, raw)
+        module = py[:-3].replace("/", ".")
+        if module.endswith(".__init__"):
+            module = module[: -len(".__init__")]
+        for h in mod_hits:
+            refined = None
+            for start, end, class_qual, dict_name, key in entries:
+                if start <= h <= end:
+                    usage = self._class_usage(f"{module}:{class_qual}")
+                    if usage is not None:
+                        keyed = self._dict_key_usage([key], {dict_name}, usage)
+                        if keyed is not None:
+                            refined = usage & keyed
+                    break
+            mask |= maps.mod_mask(py, [h]) if refined is None else refined
+        return mask
+
+    def _dict_entries(self, py, raw):
+        import ast as _ast
+
+        from .analyze import _key_descriptor
+
+        cache = self.__dict__.setdefault("_entries", {})
+        if py in cache:
+            return cache[py]
+        trees = self.__dict__.setdefault("_trees", {})
+        tree = trees.get(py)
+        if tree is None:
+            try:
+                tree = trees[py] = _ast.parse(raw)
+            except SyntaxError:
+                cache[py] = []
+                return []
+        out = []
+
+        def walk(body, prefix):
+            for node in body:
+                if isinstance(node, _ast.ClassDef):
+                    qual = prefix + node.name
+                    for child in node.body:
+                        if isinstance(child, (_ast.Assign, _ast.AnnAssign)) and isinstance(child.value, _ast.Dict):
+                            targets = child.targets if isinstance(child, _ast.Assign) else [child.target]
+                            if len(targets) != 1 or not isinstance(targets[0], _ast.Name):
+                                continue
+                            for k, v in zip(child.value.keys, child.value.values):
+                                start = k.lineno if k is not None else v.lineno
+                                out.append((start, v.end_lineno, qual, targets[0].id, _key_descriptor(k)))
+                    walk(node.body, qual + ".")
+
+        walk(tree.body, "")
+        cache[py] = out
+        return out
+
+    def _external_module_refs(self, py, raw, module, names) -> set:
+        """Lines of another file that can see `module`'s binding of one of
+        `names`: everything mentioning a name it imports from the module, and
+        attribute accesses <...module>.NAME."""
+        import ast as _ast
+
+        cache = self.__dict__.setdefault("_trees", {})
+        tree = cache.get(py)
+        if tree is None:
+            try:
+                tree = _ast.parse(raw)
+            except SyntaxError:
+                return set(range(1, raw.count(b"\n") + 2))  # cannot tell: everything
+            cache[py] = tree
+        package = py[:-3].replace("/", ".").rsplit(".", 1)[0]
+        leaf = module.rsplit(".", 1)[-1]
+        imported = set()
+        hits = set()
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.ImportFrom):
+                base = node.module or ""
+                if node.level:
+                    parts = package.split(".")
+                    base = ".".join(parts[: len(parts) - node.level + 1] + ([base] if base else []))
+                if base == module:
+                    for alias in node.names:
+                        if alias.name in names or alias.name == "*":
+                            imported.add(alias.asname or alias.name)
+                            hits.add(node.lineno)
+            elif isinstance(node, _ast.Attribute) and node.attr in names:
+                value = node.value
+                if (isinstance(value, _ast.Name) and value.id == leaf) or (isinstance(value, _ast.Attribute) and value.attr == leaf):
+                    hits.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+        if imported:
+            for node in _ast.walk(tree):
+                if isinstance(node, _ast.Name) and node.id in imported:
+                    hits.add(node.lineno)
+        return hits
+
     def _class_usage(self, key, family=True):
         maps = self.maps
         classes = maps.classes
@@ -480,9 +585,13 @@ class CandidateFinder:
             cache[rel] = self._read(rel) or b""
         return cache[rel]
 
-    def _name_refs(self, names, site_rel, site_lines, kinds) -> int:
+    def _name_refs(self, names, site_rel, site_lines, kinds, module=None) -> int:
         maps = self.maps
         needles = [n.encode() for n in names]
+        module_needles = None
+        if module:
+            leaf = module.rsplit(".", 1)[-1]
+            module_needles = [module.encode(), leaf.encode()]
         alternatives = "|".join(re.escape(n) for n in sorted(names))
         pattern = re.compile(r"\b(?:" + alternatives + r")\b")
         definition = re.compile(r"^\s*(?:" + alternatives + r")\s*(?::[^=]*)?=(?!=)")
@@ -490,6 +599,13 @@ class CandidateFinder:
         for py in self._all_py_files():
             raw = self._source(py)
             if not any(needle in raw for needle in needles):
+                continue
+            if module_needles is not None and py != site_rel:
+                if not any(n in raw for n in module_needles):
+                    continue
+                hits = self._external_module_refs(py, raw, module, names)
+                if hits:
+                    mask |= self._hits_mask(py, raw, hits)
                 continue
             hits = set()
             for i, line in enumerate(raw.decode("utf-8", "replace").split("\n"), start=1):
@@ -507,10 +623,18 @@ class CandidateFinder:
                     hits.update((i - 1, i - 2, i - 3))
             if py == site_rel:
                 hits -= set(site_lines)
-            mask |= maps.func_mask(py, hits) | maps.mod_mask(py, hits)
+            mask |= self._hits_mask(py, raw, hits)
         for rel, line, regex, kind in maps.dynamic:
             if kind not in kinds:
                 continue
+            if kind == "module" and module is not None:
+                # getattr(<module>, name) loaders read sibling modules of their
+                # own package (sqlglot.dialects.__getattr__ reads dialect modules);
+                # serde/helper read expression classes.
+                same_package = os.path.dirname(rel) == os.path.dirname(site_rel)
+                expressions = site_rel.startswith("sqlglot/expressions/") and rel in ("sqlglot/serde.py", "sqlglot/helper.py")
+                if not (same_package or expressions):
+                    continue
             if regex is None or any(re.fullmatch(regex, n) for n in names):
                 mask |= maps.func_mask(rel, [line]) | maps.mod_mask(rel, [line])
         return mask

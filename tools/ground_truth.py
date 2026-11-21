@@ -34,6 +34,7 @@ def main():
     parser.add_argument("--jobs", type=int, default=2)
     parser.add_argument("--only", default=None)
     parser.add_argument("--max-cpu", type=float, default=400.0, help="skip patches whose candidates cost more")
+    parser.add_argument("--broad", action="store_true", help="run every cheap importer of a changed module, not a sample")
     options = parser.parse_args()
 
     repo = os.path.realpath(options.repo)
@@ -74,16 +75,19 @@ def main():
                 files[change.path] = (report.new_text or "").encode("utf-8")
         pool = [number_of[maps.tests[i]] for i in maps.tests_of(importers)]
         pool = [n for n in pool if n not in cand and (maps.vcpu[maps.index[id_of[n]]] or 1) < 0.5]
-        spot = set(rng.sample(pool, min(options.spot, len(pool))))
+        if options.broad:
+            spot = {n for n in pool if (maps.vcpu[maps.index[id_of[n]]] or 1) < 1.0}
+        else:
+            spot = set(rng.sample(pool, min(options.spot, len(pool))))
         run = sorted(cand | spot)
         est = sum((maps.vcpu[maps.index[id_of[n]]] or seconds[n]) for n in run)
         if est > options.max_cpu:
             print(f"{cid}: skipped, est {est:.0f}s", file=sys.stderr)
             detail[cid] = {"skipped": True, "est": est, "candidates": sorted(cand)}
             continue
-        limits = {id_of[n]: max(60.0, 8 * seconds[n] + 30) for n in run}
+        limits = {id_of[n]: max(900.0, 30 * seconds[n] + 300) for n in run}
         modules = []
-        job = Job(cid, files, [id_of[n] for n in run], limits, modules, budget=max(300.0, est * 6 + 60))
+        job = Job(cid, files, [id_of[n] for n in run], limits, modules, budget=10.0 ** 6)
         work.append((cid, job, cand, certain, spot, est))
 
     print(f"{len(work)} patches to label", file=sys.stderr)

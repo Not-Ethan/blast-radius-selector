@@ -57,8 +57,17 @@ ones against the patched tree and keep only the ones that fail.**
    synchronous executor that still pickles arguments and results across the "boundary".
    The parent preloads third-party libraries and the sqlglot core once; a child whose
    patch does not touch the core reuses them. Expensive candidates (TPC-DS execution,
-   `test_max_nodes`, ...) are never run locally; they are included when any cheap
-   candidate fails.
+   `test_max_nodes`, ...) are never run locally.
+
+   **Infection probes.** When every change of a commit is a side-effect-free
+   expression inside a function body (a swapped operator, a changed constant, ...),
+   the verifier compiles the patched module so that each changed expression evaluates
+   both the original and the patched version and records whether they ever differ
+   (value, truth value in conditions, or exception type). If thousands of evaluations
+   across several tests never differ, the edit is inert for this test suite, and the
+   expensive candidates are left out instead of included blindly. For `is`/`==` style
+   swaps, which are nearly always inert, only the cheapest few candidates are run to
+   observe this; anything else falls back to running or including every candidate.
 
 5. **Pack** (`selector/pack.py`): longest-processing-time packing for every worker
    count 1..8 plus a move/swap improvement pass, choosing the cheapest.
@@ -100,6 +109,34 @@ python tools/build_classinfo.py <sqlglot checkout> maps/classinfo.json.gz
   other tests importing a changed module on the patched tree; a failing test outside
   the candidates would expose an unsound selection.
 * `breakdown.py` scores an output against answers, per commit and per kind.
+* `validation/` holds the generated patch sets with their labels. They exist only for
+  this harness: `.dockerignore` keeps them (and `tools/`) out of the image, and the
+  selector never reads them.
+
+## Results (local)
+
+Measured with the kit's `score.py` (simulated seconds are exact; CPU is not part of
+those numbers):
+
+| set | commits | simulated | oracle* | misses |
+| --- | ---: | ---: | ---: | ---: |
+| kit sample | 30 | 109.5 s | 94.4 s | 0 |
+| generated mix (`validation/val1`) | see `validation/` | | | 0 |
+
+\* oracle = cost of packing exactly the failing tests, the floor for any selector.
+
+CPU on a heavily loaded Apple M1 host was roughly 0.3-0.6 s per commit; the scoring
+machine's number is not known locally (amd64 emulation is far too slow to measure).
+
+## Known risks
+
+* Verification reproduces the labeler's run in-process; tests that depend on global
+  state from other tests, or on real process pools, could behave differently.
+* Name-reference narrowing of import-time changes, the SQL-text narrowing of
+  `FUNCTIONS`/`KEYWORDS`/`*_PARSERS` entries and the "inert edit" probes are
+  heuristics, not proofs; the validation sets found no miss from them.
+* Expensive tests (TPC-DS execution, `test_max_nodes`) are only left out on the probe
+  evidence; otherwise they are included whenever they are reachable.
 
 ## Layout
 

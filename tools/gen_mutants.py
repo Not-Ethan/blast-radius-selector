@@ -149,6 +149,52 @@ class Gen:
             return rel, src, new, f"{rel}:{i + 1} {line.strip()[:60]!r} -> {new_line.strip()[:60]!r}"
         raise RuntimeError("no code edit found")
 
+    def classlevel_edit(self, tries=300):
+        """Edit a constant inside a class-body or module-level statement (import time)."""
+        for _ in range(tries):
+            rel = self.pick_py()
+            src = self.read(rel)
+            try:
+                tree = ast.parse(src)
+            except SyntaxError:
+                continue
+            spans = []
+
+            def walk(body, in_class):
+                for node in body:
+                    if isinstance(node, ast.ClassDef):
+                        walk(node.body, True)
+                    elif isinstance(node, (ast.Assign, ast.AnnAssign)) and node.value is not None:
+                        spans.append((node.lineno, node.end_lineno))
+            walk(tree.body, False)
+            if not spans:
+                continue
+            start, end = self.rng.choice(spans)
+            lines = src.split("\n")
+            i = self.rng.randrange(start - 1, end)
+            line = lines[i]
+            options = []
+            for pat, rep in [(r"\bTrue\b", "False"), (r"\bFalse\b", "True")]:
+                for m in re.finditer(pat, line):
+                    options.append((m.start(), m.end(), rep))
+            for m in NUM.finditer(line):
+                options.append((m.start(), m.end(), str(int(m.group(1)) + 1)))
+            for m in STR.finditer(line):
+                options.append((m.start(1), m.end(1), m.group(1) + "X"))
+            if not options:
+                continue
+            a, b, rep = self.rng.choice(options)
+            new_lines = list(lines)
+            new_lines[i] = line[:a] + rep + line[b:]
+            new = "\n".join(new_lines)
+            try:
+                if self.dump_of(rel, src) == ast.dump(ast.parse(new)):
+                    continue
+            except SyntaxError:
+                continue
+            return rel, src, new, f"{rel}:{i + 1} classlevel {line.strip()[:60]!r}"
+        raise RuntimeError("no class-level edit")
+
     def comment_edit(self, rel=None):
         rel = rel or (self.pick_py() if self.rng.random() < 0.8 else self.rng.choice(self.fixtures))
         src = self.read(rel)
@@ -286,6 +332,8 @@ def make(gen: Gen, kind: str):
     rng = gen.rng
     if kind == "code":
         return [gen.code_edit()]
+    if kind == "classlevel":
+        return [gen.classlevel_edit()]
     if kind == "comment":
         return [gen.comment_edit()]
     if kind == "fixture":
@@ -338,7 +386,7 @@ def main():
     gen = Gen(repo, rng)
     gen.uniform = "--uniform" in sys.argv
     os.makedirs(os.path.join(out, "commits"), exist_ok=True)
-    kinds = (["code"] * 46 + ["fixture"] * 18 + ["comment"] * 10 + ["multi"] * 10 + ["test"] * 6
+    kinds = (["classlevel"] * 100) if "--classlevel" in sys.argv else (["code"] * 46 + ["fixture"] * 18 + ["comment"] * 10 + ["multi"] * 10 + ["test"] * 6
              + ["docstring"] * 4 + ["syntax"] * 2 + ["newfile"] * 2 + ["delete"] * 2)
     meta = {}
     alphabet = "abcdefghijkmnpqrstuvwxyz23456789"
