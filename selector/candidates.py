@@ -1,0 +1,516 @@
+"""From a patch to the set of tests that could possibly fail (a sound superset).
+
+Each candidate carries the reason it was picked; the planner uses reasons to
+decide what to verify by running and what to include outright.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import tokenize
+import io
+from dataclasses import dataclass, field
+
+from .analyze import analyze_python
+from .maps import Maps
+from .patch import FileChange, apply_hunks
+
+PYTEST_CONFIG = {"pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml", "conftest.py"}
+# Class-level dicts whose string keys are SQL text (function names, keywords...).
+SQL_TEXT_DICT = re.compile(r"(FUNCTIONS|_PARSERS|KEYWORDS|_MAPPING)$")
+
+
+@dataclass
+class FileReport:
+    path: str
+    kind: str  # "py" | "data" | "new" | "deleted" | ...
+    detail: str = ""
+    certain: int = 0  # tests that fail for sure (e.g. module no longer imports)
+    func: int = 0  # function-scope coverage candidates
+    imp: int = 0  # import-time candidates
+    data: int = 0  # data-file readers
+    other: int = 0
+    sites: list = field(default_factory=list)
+    new_text: str | None = None
+
+
+@dataclass
+class CommitCandidates:
+    files: list[FileReport] = field(default_factory=list)
+    unknown: bool = False  # something we cannot reason about
+
+    @property
+    def certain(self) -> int:
+        m = 0
+        for f in self.files:
+            m |= f.certain
+        return m
+
+    @property
+    def possible(self) -> int:
+        m = 0
+        for f in self.files:
+            m |= f.certain | f.func | f.imp | f.data | f.other
+        return m
+
+
+def decode_source(raw: bytes) -> str | None:
+    """Decode Python source the way the import system would; None if it cannot."""
+    try:
+        encoding, _ = tokenize.detect_encoding(io.BytesIO(raw).readline)
+        text = raw.decode(encoding)
+    except (SyntaxError, UnicodeDecodeError, LookupError):
+        return None
+    if text.startswith("﻿"):
+        text = text[1:]
+    return text
+
+
+class CandidateFinder:
+    def __init__(self, maps: Maps, repo_root: str):
+        self.maps = maps
+        self.root = repo_root
+        self._py_files = None
+
+    def _read(self, rel: str) -> bytes | None:
+        try:
+            with open(os.path.join(self.root, rel), "rb") as handle:
+                return handle.read()
+        except OSError:
+            return None
+
+    def _module_tests(self, rel: str) -> int:
+        """Tests whose process imported this module."""
+        return self.maps.import_mask(rel)
+
+    def analyze(self, changes: list[FileChange]) -> CommitCandidates:
+        result = CommitCandidates()
+        for change in changes:
+            result.files.append(self._file(change, result))
+        return result
+
+    # ------------------------------------------------------------------
+    def _file(self, change: FileChange, result: CommitCandidates) -> FileReport:
+        path = change.path
+        old_rel = change.old_path
+        maps = self.maps
+        report = FileReport(path=path, kind="data")
+
+        old_raw = self._read(old_rel) if old_rel else None
+        if old_rel and old_raw is None:
+            # Patch refers to a file we do not have: cannot reason precisely.
+            report.kind = "unknown"
+            report.other = maps.all_mask
+            result.unknown = True
+            return report
+
+        new_text = None
+        if not change.is_deleted and not change.binary:
+            try:
+                old_text = old_raw.decode("utf-8") if old_raw is not None else None
+                new_text = apply_hunks(old_text, change)
+            except Exception as error:  # noqa: BLE001
+                report.kind = "unapplicable"
+                report.detail = repr(error)
+                report.other = maps.all_mask
+                result.unknown = True
+                return report
+        report.new_text = new_text
+
+        base = os.path.basename(path)
+        if base in PYTEST_CONFIG and (base != "pyproject.toml" or self._pytest_config_changed(old_raw, new_text)):
+            if base != "setup.cfg" or self._setup_cfg_pytest_changed(old_raw, new_text):
+                report.kind = "pytest-config"
+                report.other = maps.all_mask
+                if base == "conftest.py":
+                    # A conftest only affects tests below its directory.
+                    directory = os.path.dirname(path)
+                    mask = 0
+                    for i, node in enumerate(maps.tests):
+                        if node.startswith(directory + "/") or directory == "":
+                            mask |= 1 << i
+                    report.other = mask
+                return report
+
+        if change.is_rename and not change.hunks and not change.is_deleted:
+            # A pure rename: the old path disappears and a new path appears.
+            self._deleted(old_rel, report)
+            self._new_file(path, new_text, report)
+            report.kind = "rename"
+            return report
+
+        if change.is_deleted:
+            self._deleted(old_rel, report)
+            return report
+
+        if change.is_new:
+            self._new_file(path, new_text, report)
+            return report
+
+        if change.is_rename:
+            self._deleted(old_rel, report)
+            self._new_file(path, new_text, report)
+
+        if change.binary:
+            report.kind = "binary"
+            report.data = maps.open_mask(old_rel) | self._module_tests(old_rel)
+            return report
+
+        if change.mode_only:
+            report.kind = "mode"
+            return report
+
+        if path.endswith(".py"):
+            self._python(old_rel, old_raw, new_text, report)
+        else:
+            report.kind = "data"
+            if self._sql_fixture_noop(old_rel, old_raw, new_text):
+                report.detail = "only blank or -- comment lines changed"
+                return report
+            report.data = maps.open_mask(old_rel)
+        return report
+
+    @staticmethod
+    def _sql_fixture_noop(rel, old_raw, new_text) -> bool:
+        """tests/helpers.py reads every .sql fixture through _filter_comments,
+        which drops empty lines and lines starting with "--"; a change that
+        leaves the filtered text identical cannot change any test."""
+        if not (rel.startswith("tests/fixtures/") and rel.endswith(".sql")) or old_raw is None or new_text is None:
+            return False
+
+        def filtered(text):
+            return [line for line in text.splitlines() if line and not line.startswith("--")]
+
+        try:
+            return filtered(old_raw.decode("utf-8")) == filtered(new_text)
+        except UnicodeDecodeError:
+            return False
+
+    def _pytest_config_changed(self, old_raw, new_text) -> bool:
+        try:
+            import tomllib
+
+            old = tomllib.loads(old_raw.decode("utf-8")) if old_raw else {}
+            new = tomllib.loads(new_text or "")
+        except Exception:  # noqa: BLE001 - unparsable config: assume it matters
+            return True
+        return old.get("tool", {}).get("pytest") != new.get("tool", {}).get("pytest")
+
+    def _setup_cfg_pytest_changed(self, old_raw, new_text) -> bool:
+        import configparser
+
+        def section(text):
+            parser = configparser.ConfigParser(interpolation=None)
+            try:
+                parser.read_string(text or "")
+            except Exception:  # noqa: BLE001
+                return None
+            return {k: dict(parser[k]) for k in parser.sections() if "pytest" in k}
+
+        return section(old_raw.decode("utf-8") if old_raw else "") != section(new_text)
+
+    def _deleted(self, rel: str, report: FileReport):
+        maps = self.maps
+        report.kind = "deleted"
+        mask = maps.open_mask(rel) | self._module_tests(rel)
+        # Tests defined in a deleted test file.
+        for i, node in enumerate(maps.tests):
+            if node.split("::", 1)[0] == rel:
+                mask |= 1 << i
+        report.certain |= mask
+        report.other |= maps.list_mask(os.path.dirname(rel) or ".")
+
+    def _new_file(self, rel: str, new_text: str | None, report: FileReport):
+        maps = self.maps
+        report.kind = "new"
+        mask = 0
+        directory = os.path.dirname(rel) or "."
+        mask |= maps.list_mask(directory)
+        if rel.endswith(".py") or os.path.isdir(os.path.join(self.root, rel[:-3] if rel.endswith(".py") else rel)):
+            # Something may import it by name (e.g. an optional import that used
+            # to fail). Find repository lines that mention the module's name.
+            mask |= self._name_references(rel)
+        report.other |= mask
+
+    def _name_references(self, rel: str) -> int:
+        maps = self.maps
+        module = rel[:-3] if rel.endswith(".py") else rel
+        if module.endswith("/__init__"):
+            module = module[: -len("/__init__")]
+        dotted = module.replace("/", ".")
+        leaf = dotted.rsplit(".", 1)[-1]
+        pattern = re.compile(r"\b" + re.escape(leaf) + r"\b")
+        mask = 0
+        for py in self._all_py_files():
+            raw = self._read(py)
+            if raw is None or leaf.encode() not in raw:
+                continue
+            text = raw.decode("utf-8", "replace")
+            hits = [i + 1 for i, line in enumerate(text.split("\n")) if pattern.search(line)]
+            if hits:
+                mask |= maps.func_mask(py, hits) | maps.mod_mask(py, hits)
+        return mask
+
+    def _all_py_files(self):
+        if self._py_files is None:
+            files = []
+            for base in ("sqlglot", "tests", "sqlglotc"):
+                for dirpath, dirnames, filenames in os.walk(os.path.join(self.root, base)):
+                    dirnames[:] = [d for d in dirnames if d != "__pycache__"]
+                    for name in filenames:
+                        if name.endswith(".py"):
+                            files.append(os.path.relpath(os.path.join(dirpath, name), self.root))
+            self._py_files = files
+        return self._py_files
+
+    def _python(self, rel: str, old_raw: bytes, new_text: str, report: FileReport):
+        maps = self.maps
+        report.kind = "py"
+        old_src = decode_source(old_raw)
+        new_raw = new_text.encode("utf-8")
+        new_src = decode_source(new_raw)
+        readers = maps.open_mask(rel)
+        report.data |= readers
+        if new_src is None:
+            report.detail = "undecodable"
+            report.certain |= self._module_tests(rel)
+            return
+        analysis = analyze_python(old_src, new_src, rel)
+        if analysis.error and not analysis.syntax_error:
+            report.detail = analysis.error
+            report.other |= self._module_tests(rel)
+            return
+        if analysis.syntax_error:
+            report.detail = "syntax error: " + (analysis.error or "")
+            report.certain |= self._module_tests(rel)
+            # A broken test file fails all of its own tests too.
+            for i, node in enumerate(maps.tests):
+                if node.split("::", 1)[0] == rel:
+                    report.certain |= 1 << i
+            return
+        if analysis.noop:
+            report.detail = "no AST change"
+            return
+        report.sites = analysis.sites
+        module = rel[:-3].replace("/", ".")
+        if module.endswith(".__init__"):
+            module = module[: -len(".__init__")]
+        for site in analysis.sites:
+            if site.kind == "docstring":
+                continue
+            if site.scope == "function":
+                if site.kind == "lambda":
+                    # The lambda's first line is also run by the class body or
+                    # module that creates it; only the lambda's own code counts.
+                    report.func |= maps.func_mask(rel, site.lines)
+                else:
+                    report.func |= maps.func_mask(rel, site.lines) | maps.mod_mask(rel, site.lines)
+                if site.entries:
+                    report.func |= maps.entry_mask(rel, site.entries)
+            else:
+                report.imp |= self._import_site_mask(rel, module, site)
+
+    # -- import-time changes ---------------------------------------------------
+    def _import_site_mask(self, rel, module, site) -> int:
+        """Tests that can observe a changed class-body or module-level statement.
+
+        Start from the tests that executed the statement at all (for an
+        unconditional statement: every test that imported the module). For a
+        class body, keep only tests that used the class: instantiated it or a
+        subclass, or entered one of their methods (dialect families count as
+        one class). Then, when the statement just binds names, keep only tests
+        that ran a line mentioning one of those names, or a line that reads
+        attributes by computed name that could match.
+        """
+        maps = self.maps
+        base = maps.mod_mask(rel, site.lines) | maps.func_mask(rel, site.lines)
+        if not site.lines:
+            base = self._module_tests(rel)
+        if not base:
+            return 0
+        names = set(site.names)
+        dunder = any(n.startswith("__") and n.endswith("__") for n in names)
+        if site.scope == "class" and rel.startswith("tests/") and site.class_qual and "." not in site.class_qual \
+                and names and all(n.startswith("test") for n in names) and site.kind != "class-header":
+            # Only test methods of a test class changed (added, removed, redecorated):
+            # that can affect only those tests themselves.
+            prefix = f"{rel}::{site.class_qual}::"
+            mask = 0
+            for n in names:
+                k = maps.index.get(prefix + n)
+                if k is not None:
+                    mask |= 1 << k
+            return mask
+        if site.scope == "class":
+            usage = self._class_usage(f"{module}:{site.class_qual}")
+            if usage is None:
+                return base
+            if site.kind == "class-header":
+                return base & (usage | self._name_refs(names, rel, site.lines, ("object", "module", "instance")))
+            cand = base & usage
+            if names and not dunder:
+                cand &= self._name_refs(names, rel, site.lines, ("object",))
+            if cand and site.dict_keys:
+                keyed = self._dict_key_usage(site.dict_keys, names, cand)
+                if keyed is not None:
+                    cand &= keyed
+            return cand
+        if not names or dunder:
+            return base
+        return base & self._name_refs(names, rel, site.lines, ("object", "module", "instance"))
+
+    def _dict_key_usage(self, keys, names=(), within=None):
+        """Tests that could look up these dict entries.
+
+        * Every key a sqlglot class (TRANSFORMS = {exp.Foo: ...}): an entry keyed
+          by a class is only consulted for instances of that class or subclasses.
+        * Every key a SQL word of a dict that maps SQL text (FUNCTIONS, KEYWORDS,
+          *_PARSERS, *_MAPPING): only tests whose SQL contains the word can look
+          it up: the test method's text, its file's non-test code, or a data file
+          it reads must contain the word (case-insensitive).
+        """
+        if keys and all(k[0] == "str" for k in keys):
+            if names and all(SQL_TEXT_DICT.search(n) for n in names):
+                return self._text_usage([k[1] for k in keys], within)
+            return None
+        if not hasattr(self, "_by_simple_name"):
+            index = {}
+            for k in self.maps.classes:
+                index.setdefault(k.rsplit(".", 1)[-1].split(":")[-1], []).append(k)
+            self._by_simple_name = index
+        mask = 0
+        for key in keys:
+            if key[0] not in ("attr", "name"):
+                return None
+            matches = self._by_simple_name.get(key[1])
+            if not matches:
+                return None
+            for k in matches:
+                usage = self._class_usage(k, family=False)
+                if usage is None:
+                    return None
+                mask |= usage
+        return mask
+
+    def _text_usage(self, words, within=None):
+        maps = self.maps
+        if within is None:
+            within = maps.all_mask
+        files = {maps.tests[i].split("::", 1)[0] for i in maps.tests_of(within)}
+        patterns = []
+        for word in words:
+            word = word.strip()
+            if len(word) < 3 or not re.search(r"[A-Za-z]", word):
+                return None  # too generic to search for
+            parts = [re.escape(p) for p in word.split()]
+            body = r"\s+".join(parts)
+            left = r"(?<![A-Za-z0-9_])" if re.match(r"\w", word) else ""
+            right = r"(?![A-Za-z0-9_])" if re.search(r"\w$", word) else ""
+            patterns.append(left + body + right)
+        regex = re.compile("|".join(patterns), re.IGNORECASE)
+        mask = 0
+        # Test files: a hit inside a test method selects that test; anywhere
+        # else in the file (helpers, module data) selects every test of the file.
+        for rel, spans in maps.test_spans.items():
+            if rel not in files:
+                continue
+            raw = self._source(rel)
+            if not raw:
+                continue
+            text = raw.decode("utf-8", "replace")
+            if not regex.search(text):
+                continue
+            for i, line in enumerate(text.split("\n"), start=1):
+                if not regex.search(line):
+                    continue
+                owner = None
+                for start, end, node in spans:
+                    if start <= i <= end:
+                        owner = node
+                        break
+                if owner is None:
+                    for _, _, node in spans:
+                        k = maps.index.get(node)
+                        if k is not None:
+                            mask |= 1 << k
+                else:
+                    k = maps.index.get(owner)
+                    if k is not None:
+                        mask |= 1 << k
+        # Data files tests read.
+        for rel, k in maps.opens.items():
+            if rel.endswith(".py") or not (maps.mask(k) & within):
+                continue
+            raw = self._source(rel)
+            if raw and regex.search(raw.decode("utf-8", "replace")):
+                mask |= maps.mask(k)
+        return mask
+
+    def _class_usage(self, key, family=True):
+        maps = self.maps
+        classes = maps.classes
+        if key not in classes:
+            return None
+        group = maps.descendants(key)
+        if not hasattr(self, "_families"):
+            families = {}
+            for k, v in classes.items():
+                families.setdefault(v.get("family"), set()).add(k)
+            self._families = families
+        for k in list(group) if family else ():
+            fam = classes.get(k, {}).get("family")
+            if fam is not None:
+                group |= self._families.get(fam, set())
+        mask = 0
+        for k in group:
+            info = classes.get(k)
+            if info is None or not info.get("tracked"):
+                return None
+            mask |= maps.inst_mask(k)
+            if info.get("file") and info.get("methods"):
+                mask |= maps.entry_mask(info["file"], info["methods"])
+        return mask
+
+    def _source(self, rel):
+        cache = getattr(self, "_source_cache", None)
+        if cache is None:
+            cache = self._source_cache = {}
+        if rel not in cache:
+            cache[rel] = self._read(rel) or b""
+        return cache[rel]
+
+    def _name_refs(self, names, site_rel, site_lines, kinds) -> int:
+        maps = self.maps
+        needles = [n.encode() for n in names]
+        alternatives = "|".join(re.escape(n) for n in sorted(names))
+        pattern = re.compile(r"\b(?:" + alternatives + r")\b")
+        definition = re.compile(r"^\s*(?:" + alternatives + r")\s*(?::[^=]*)?=(?!=)")
+        mask = 0
+        for py in self._all_py_files():
+            raw = self._source(py)
+            if not any(needle in raw for needle in needles):
+                continue
+            hits = set()
+            for i, line in enumerate(raw.decode("utf-8", "replace").split("\n"), start=1):
+                found = pattern.findall(line)
+                if not found:
+                    continue
+                stripped = line.lstrip()
+                if stripped.startswith("#"):
+                    continue
+                if definition.match(line) and len(found) == 1:
+                    continue  # `NAME = ...` (re)defines the name; it does not read it
+                hits.add(i)
+                if stripped.startswith("."):
+                    # A chained attribute is reported on the line where the chain starts.
+                    hits.update((i - 1, i - 2, i - 3))
+            if py == site_rel:
+                hits -= set(site_lines)
+            mask |= maps.func_mask(py, hits) | maps.mod_mask(py, hits)
+        for rel, line, regex, kind in maps.dynamic:
+            if kind not in kinds:
+                continue
+            if regex is None or any(re.fullmatch(regex, n) for n in names):
+                mask |= maps.func_mask(rel, [line]) | maps.mod_mask(rel, [line])
+        return mask

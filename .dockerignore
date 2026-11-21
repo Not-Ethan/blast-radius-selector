@@ -1,0 +1,5 @@
+.work
+tools
+validation
+**/__pycache__
+*.pyc
