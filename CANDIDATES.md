@@ -456,7 +456,7 @@ val1/val2/val4, re-checked where noted); probes = the adversarial sets of this r
 | 13 | module-level name: every `<anything>.NAME`, uses of names bound by `from <anything> import NAME [as A]`, bare uses in star-importing files, string constants; computed-name module readers of the same package; class-only readers skipped for plain values; computed reads in a function count only tests that ran it | proof modulo the computed-read list (row 8) | modrefs probes, val3, val6 (7bef) |
 | 14 | class-keyed dict entry (`TRANSFORMS = {exp.Foo: ...}`) -> tests that built an `exp.Foo` or subclass | **heuristic**: such dicts are consulted by expression class; an explicit `D[exp.Foo]` lookup for another type would break it (none found by grep) | val1/val2 TRANSFORMS edits |
 | 15 | SQL-text keyed dicts (`KEYWORDS`, `FUNCTIONS`, ...): no extra narrowing since M11 | - | val10 (19 probes) |
-| 16 | test class: only `test*` methods changed -> those tests | proof for this suite: no test calls another test method (grep) | val1/val2 test kinds |
+| 16 | test class: only `test*` methods changed -> those tests | proof for this suite: no test calls another test method, and no test class inherits test methods from another (checked over tests/) | val1/val2 test kinds |
 | 17 | data file -> tests that opened it (Python `open` audit hook; gzip/csv go through it) | proof for this suite: tests read repository files through Python `open` (checked test_executor, helpers, jsonpath) | fixture kinds in val1/val2/val6/val9 |
 | 18 | `.sql` fixture edit touching only empty or `--` lines -> nothing | proof: every `.sql` fixture is read through `tests/helpers.py`, which drops exactly those lines (same `splitlines` filter) | val1/val6 fixture comments |
 | 19 | new file -> directory listers + lines mentioning the module's last name | **heuristic**: a module imported by a computed name that no line spells out would be missed | new-file probes (package shadowing), val1/val5 newfile kinds |
@@ -465,7 +465,7 @@ val1/val2/val4, re-checked where noted); probes = the adversarial sets of this r
 | 22 | verification: candidates that pass when run here with the patch are left out | proof modulo environment (in-process unittest semantics, process pools replaced by a synchronous executor, generous limits) | every set |
 | 23 | per-case restriction: only the cases that reach the change (code) or changed (fixture) | proof modulo state carried between cases; union of case coverage = whole-test coverage for all 28 tests | val1/val2/val6 optimizer and TPC edits |
 | 24 | TPC-DS stage check: optimizer outputs equal and nothing outside `optimize()` reached -> rest of each case unchanged | proof modulo determinism (fingerprints recorded under two hash seeds) | sample 2jrq, val2/val6 TPC-DS candidates |
-| 25 | infection probes: unrun candidates (incl. expensive ones) left out when the edited expressions never evaluate differently in the cheap tests run (>= 50 evaluations, >= 3 tests) | **heuristic** (induction from the tests that ran) | 24 labelled "inert" decisions, all right: sample 2, val4 11 (built for it), is/== swap probe set 11; switching it off (`BR_PROBES=0`) costs sample +33.0 s, val4 +158.8, val2 +3.5, val1 +2.0, val6/val9 +0 |
+| 25 | infection probes: unrun candidates (incl. expensive ones) left out when the edited expressions never evaluate differently in the cheap tests run (>= 50 evaluations, >= 3 tests) | **heuristic** (induction from the tests that ran) | 25 labelled "inert" decisions, all right: sample 2, val4 11 (built for it), val15 = 40 is/==-swap edits 12 (0 misses on val15 overall); switching it off (`BR_PROBES=0`) costs sample +33.0 s, val4 +158.8, val2 +3.5, val1 +2.0, val6/val9 +0 |
 
 Determinism check behind rows 1, 5, 9, 10, 23: 161 tests (every 10th, under 3 s) traced
 under PYTHONHASHSEED=1 and =2: identical line coverage for all 161.
@@ -503,3 +503,9 @@ labels): M12 misses 1 commit, M13 none.
 
 Expected on practice: unchanged for sample-like commits (sample and val6 identical); more
 for class-level edits of dialect/tokenizer settings that other classes read by name.
+
+Decision left to the coordinator: row 25 is the one rule whose evidence is statistical.
+25 of 25 labelled inert decisions were right (95% upper bound on the error rate about
+12%); it saves 33 s on the kit sample (2 of 30 commits). `BR_PROBES=0` in the Dockerfile's
+environment (or flipping the default in `selector/policy.py`) turns it off with no other
+change.
