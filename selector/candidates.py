@@ -34,6 +34,8 @@ class FileReport:
     other: int = 0
     sites: list = field(default_factory=list)
     new_text: str | None = None
+    old_text: str | None = None  # data files only
+    site_masks: list = field(default_factory=list)  # one mask per Python change site (func/imp)
 
 
 @dataclass
@@ -166,6 +168,10 @@ class CandidateFinder:
             self._python(old_rel, old_raw, new_text, report)
         else:
             report.kind = "data"
+            try:
+                report.old_text = old_raw.decode("utf-8") if old_raw is not None else None
+            except UnicodeDecodeError:
+                report.old_text = None
             if self._sql_fixture_noop(old_rel, old_raw, new_text):
                 report.detail = "only blank or -- comment lines changed"
                 return report
@@ -304,13 +310,16 @@ class CandidateFinder:
                 if site.kind == "lambda":
                     # The lambda's first line is also run by the class body or
                     # module that creates it; only the lambda's own code counts.
-                    report.func |= maps.func_mask(rel, site.lines)
+                    mask = maps.func_mask(rel, site.lines)
                 else:
-                    report.func |= maps.func_mask(rel, site.lines) | maps.mod_mask(rel, site.lines)
+                    mask = maps.func_mask(rel, site.lines) | maps.mod_mask(rel, site.lines)
                 if site.entries:
-                    report.func |= maps.entry_mask(rel, site.entries)
+                    mask |= maps.entry_mask(rel, site.entries)
+                report.func |= mask
             else:
-                report.imp |= self._import_site_mask(rel, module, site)
+                mask = self._import_site_mask(rel, module, site)
+                report.imp |= mask
+            report.site_masks.append(mask)
 
     # -- import-time changes ---------------------------------------------------
     def _import_site_mask(self, rel, module, site) -> int:

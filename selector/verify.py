@@ -286,7 +286,7 @@ def _install_probes(overlay: str, probes: dict):
     return current
 
 
-def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict, check_modules: list[str], out_fd: int, memory_limit: int | None, warm: bool = False, probes: dict | None = None):
+def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict, check_modules: list[str], out_fd: int, memory_limit: int | None, warm: bool = False, probes: dict | None = None, groups: list | None = None):
     result = {"failed": [], "import_errors": {}, "durations": {}, "error": None}
     try:
         if memory_limit:
@@ -314,6 +314,18 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
             current = _install_probes(overlay, probes)
             runner.ON_START = lambda node: current.__setitem__("test", node)
 
+        restricted = bool(groups) and any(allowed for allowed, _ in groups)
+        if restricted:
+            # Wrap the fixture loaders before any test module imports them. If the
+            # overlay's helpers cannot be wrapped, every group simply runs all of
+            # its cases (more work, same answer).
+            from selector import cases
+
+            try:
+                cases.install(importlib.import_module("tests.helpers"))
+            except BaseException:  # noqa: BLE001
+                pass
+
         for name in check_modules:
             signal.signal(signal.SIGALRM, _raise_timeout)
             signal.setitimer(signal.ITIMER_REAL, 20)
@@ -323,7 +335,14 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
                 result["import_errors"][name] = repr(error)[:300]
             finally:
                 signal.setitimer(signal.ITIMER_REAL, 0)
-        failed, durations = run_tests(tests, limit_of=lambda node: limits.get(node, 30.0))
+        failed, durations = set(), {}
+        for allowed, group_tests in (groups or [({}, tests)]):
+            if restricted:
+                cases.ALLOWED.clear()
+                cases.ALLOWED.update({os.path.normpath(f): frozenset(v) for f, v in allowed.items()})
+            group_failed, group_durations = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
+            failed |= set(group_failed)
+            durations.update(group_durations)
         result["failed"] = sorted(failed)
         result["durations"] = {k: round(v, 4) for k, v in durations.items()}
         result["probes"] = {k: {"count": v["count"], "infected": v["infected"], "tests": len(v["tests"])}
@@ -367,7 +386,10 @@ def _raise_timeout(signum, frame):
 
 
 class Job:
-    def __init__(self, key, files, tests, limits, check_modules, budget, warm=False, probes=None):
+    def __init__(self, key, files, tests, limits, check_modules, budget, warm=False, probes=None, groups=None):
+        # groups: [(fixture -> case ordinals to keep, [test ids])], run in order in
+        # the same child; None runs `tests` with every case.
+        self.groups = groups
         self.warm = warm
         self.probes = probes
         self.key = key
@@ -410,7 +432,7 @@ def run_jobs(jobs: list[Job], root: str, tmp_base: str, parallel: int, deadline:
                 os.close(read_fd)
                 code = 0
                 try:
-                    _child(overlay, root, job.files, job.tests, job.limits, job.check_modules, write_fd, memory_limit, job.warm, job.probes)
+                    _child(overlay, root, job.files, job.tests, job.limits, job.check_modules, write_fd, memory_limit, job.warm, job.probes, job.groups)
                 except BaseException:  # noqa: BLE001
                     code = 1
                 os._exit(code)

@@ -50,6 +50,7 @@ def main():
     # Fallback first: if anything below crashes we still print valid lines.
     try:
         maps = Maps()
+        policy._MAPS = maps
         finder = CandidateFinder(maps, ROOT)
         # Map map indexes to this run's test numbers (ids not in our maps are unknown).
         map_to_number = [number_of.get(node) for node in maps.tests]
@@ -73,9 +74,15 @@ def main():
         deadline = START + total_limit
         id_of = {t["number"]: t["id"] for t in tests}
         policy.verify_plans(plans, ROOT, TMP, deadline, log, id_of, number_of, seconds_of)
+        dump = os.environ.get("BR_PLAN_DUMP")
         for plan in plans:
             answers[plan.cid] = sorted(plan.final_tests())
             log(f"{plan.cid}: {len(answers[plan.cid])} tests; {plan.note}")
+        if dump:  # dev diagnostics only (never set in the image)
+            with open(dump, "w") as handle:
+                for plan in plans:
+                    handle.write(json.dumps({"commit": plan.cid, "why": {str(k): v for k, v in plan.explain().items()},
+                                             "note": plan.note, "verify_cpu": getattr(plan, "verify_cpu", 0.0)}) + "\n")
     except Exception as error:  # noqa: BLE001
         log(f"fatal: {error!r}; falling back to running everything")
         for cid in commits:

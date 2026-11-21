@@ -10,6 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT = os.path.join(os.path.dirname(HERE), "maps", "coverage.json.gz")
 CLASSINFO = os.path.join(os.path.dirname(HERE), "maps", "classinfo.json.gz")
 SETUP_COST = os.path.join(os.path.dirname(HERE), "maps", "setup_cost.json")
+CASES = os.path.join(os.path.dirname(HERE), "maps", "cases.json")
 
 
 class Maps:
@@ -31,6 +32,20 @@ class Maps:
         self.imports = data["imports"]
         self.inst = data.get("inst", {})
         self.all_mask = (1 << len(self.tests)) - 1
+        # Per-case pseudo-tests (tools/augment_maps.py): test id -> {"outside": index,
+        # "fixtures": {fixture: [index per case ordinal]}}. Pseudo ids are not real tests.
+        self.cases = data.get("cases", {})
+        # Tests that loop over fixture cases (tools/build_cases.py): id -> [(fixture, kind)]
+        self.case_tests = {}
+        self.case_counts = {}
+        self.case_also = {}
+        if os.path.exists(CASES):
+            with open(CASES) as handle:
+                table = json.load(handle)
+            self.case_tests = {k: [tuple(x) for x in v] for k, v in table["tests"].items()}
+            self.case_counts = table.get("counts", {})
+            # fixtures a test's class loads (setUpClass) that the test never consumes
+            self.case_also = {k: set(v) for k, v in table.get("also", {}).items()}
         self.classes = {}
         self.dynamic = []
         self.test_spans = {}

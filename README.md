@@ -56,8 +56,40 @@ ones against the patched tree and keep only the ones that fail.**
    optimizer and executor tests use spawn-based process pools; those are replaced by a
    synchronous executor that still pickles arguments and results across the "boundary".
    The parent preloads third-party libraries and the sqlglot core once; a child whose
-   patch does not touch the core reuses them. Expensive candidates (TPC-DS execution,
-   `test_max_nodes`, ...) are never run locally.
+   patch does not touch the core reuses them. A test is too expensive to run here when
+   its CPU estimate exceeds both 3 s and 60% of its recorded seconds (`test_max_nodes`,
+   a full TPC-DS execution); those are included, unless the probes below clear them.
+   The planner prices each option as CPU + expected packing cost, where every verified
+   test that takes long to include is weighted by its chance of failing (measured on the
+   kit sample and our labelled sets: about 0.25 for a candidate reached by a function
+   edit, 0.2 by an import-time edit, 0.2 for tests over 5 s), and it also considers
+   verifying only the tests that save the most recorded seconds per CPU second while
+   including the cheap tail outright.
+
+   **Running only the cases a patch can affect** (`selector/cases.py`). Many slow tests
+   are loops over independent fixture cases read through `tests.helpers`'
+   `load_sql_fixture_pairs` / `load_sql_fixtures`: TPC-H/TPC-DS execution and
+   optimization, every `check_file` optimizer test, annotate_types/functions, identity
+   and pretty transpile tests (`maps/cases.json`, found by scanning the pinned test
+   sources and checked by hand: each case is parsed, transformed and compared on its
+   own). Such a test can be run restricted to some cases by wrapping the two loaders so
+   they only yield those ordinals; everything else in the test (class fixtures, code
+   after the loop, other reads of the file) runs unchanged. A restricted run keeps:
+   * for a fixture edit: the cases that are new or whose text changed (cases are
+     aligned by content, so cases that only moved are not re-run);
+   * for a code edit: the cases whose own coverage touches the changed code. Each case
+     of the slowest loop tests (TPC-DS/TPC-H execution and optimization) was traced at
+     build time like a whole test (fresh interpreter, test restricted to that one case,
+     class fixtures and code outside the loop included), and each traced case is a
+     *pseudo-test* in the coverage map (an id that is not in tests.json, so it can never
+     be printed). All candidate rules (line coverage, class usage, name references, dict
+     keys) therefore apply per case unchanged.
+
+   A test is restricted only when every reason it is a candidate is attributable to
+   cases; otherwise (no per-case coverage, another data file it reads, a change that no
+   single-case run executes, `tests/helpers.py` touched) it runs every case. Restricted
+   tests run in their own group, and only tests whose every restricted fixture is one of
+   their own (or one their class loads but they never use) may join it.
 
    **Infection probes.** When every change of a commit is a side-effect-free
    expression inside a function body (a swapped operator, a changed constant, ...),
@@ -84,7 +116,11 @@ than over-selection.
   code and lazily built caches are attributed to every test that needs them):
   lines executed by function code and by module/class-body code, functions entered,
   repository files opened, directories listed, sqlglot classes instantiated, and the
-  CPU each test costs our verifier.
+  CPU each test costs our verifier. Plus one pseudo-test per case of the TPC-H/TPC-DS
+  loop tests (`tools/trace_cases.py`, `tools/augment_maps.py`) with the CPU of a run
+  restricted to that case.
+* `cases.json`: which tests loop over which fixture, the number of cases per fixture,
+  and fixtures a test's class loads but the test never uses (`tools/build_cases.py`).
 * `classinfo.json.gz`: sqlglot class hierarchy, dialect families, class spans, the
   lines that read attributes by computed name, and test-method spans.
 * `setup_cost.json`: CPU cost of class fixtures (`setUpClass`) our verifier pays once
@@ -101,6 +137,15 @@ docker run --rm -v $PWD/out:/out -v /path/to/tests.json:/data/tests.json br-trac
 python tools/build_maps.py out/trace tests.json maps/coverage.json.gz out/cpu.json <scale>
 python tools/build_classinfo.py <sqlglot checkout> maps/classinfo.json.gz
 python tools/measure_setup.py <sqlglot checkout> tests.json maps/setup_cost.json <scale>
+# fixture-loop tests, then per-case coverage of the slowest ones
+python tools/build_cases.py <sqlglot checkout> tests.json maps/cases.json
+python tools/check_cases.py <sqlglot checkout>        # case splitting == tests/helpers.py
+T=tests/test_executor.py::TestExecutor::test_execute_tpcds,tests/test_executor.py::TestExecutor::test_execute_tpch,\
+tests/test_executor.py::TestExecutor::test_optimized_tpch,tests/test_optimizer.py::TestOptimizer::test_tpcds,\
+tests/test_optimizer.py::TestOptimizer::test_tpch
+python tools/trace_cases.py <sqlglot checkout> maps/cases.json out/cases --tests $T
+python tools/trace_cases.py <sqlglot checkout> maps/cases.json out/cases --tests $T --measure
+python tools/augment_maps.py out/coverage_plain.json.gz out/cases maps/coverage.json.gz <scale>
 ```
 
 `<scale>` is the measuring machine's CPU time divided by the recorded seconds for
@@ -112,9 +157,15 @@ Linux came out identical.
 * `gen_mutants.py` generates patches of many kinds (operator/constant/boolean edits in
   function and class bodies, deleted statements, comments in code and fixtures, fixture
   edits, test edits, docstrings, syntax errors, new and deleted files, multi-file mixes).
-* `ground_truth.py` labels them by running every candidate test plus a random sample of
-  other tests importing a changed module on the patched tree; a failing test outside
-  the candidates would expose an unsound selection.
+* `label_pytest.py` labels them with real pytest (real spawn process pools, pytest 9
+  subtests, pytest-timeout with a 1500 s limit) on the patched tree. What it runs does
+  not depend on the selector's narrowing: every test that entered an edited function
+  (edits strictly inside function bodies), every importer or reader of the file
+  (any other .py edit), every reader of a data file, everything for added, removed or
+  renamed .py files and test-helper/pytest configuration edits; plus a random sample
+  of other importers. A run of the whole suite on the unchanged tree has no failures.
+* `ground_truth.py` (older) runs the selector's own candidates plus a random sample of
+  other importers in-process.
 * `breakdown.py` scores an output against answers, per commit and per kind.
 * `validation/` holds the generated patch sets with their labels. They exist only for
   this harness: `.dockerignore` keeps them (and `tools/`) out of the image, and the
@@ -148,7 +199,13 @@ spot check ever failed outside the candidate set).
   `FUNCTIONS`/`KEYWORDS`/`*_PARSERS` entries and the "inert edit" probes are
   heuristics, not proofs; the validation sets found no miss from them.
 * Expensive tests (TPC-DS execution, `test_max_nodes`) are only left out on the probe
-  evidence; otherwise they are included whenever they are reachable.
+  evidence or after a restricted run of the cases the patch can affect; otherwise they
+  are included whenever they are reachable.
+* Restricted runs assume fixture cases are independent (true for every loop listed in
+  `maps/cases.json` as written at the pinned commit) and that a case whose own
+  coverage (traced alone, from a fresh interpreter) misses the changed code cannot
+  see it in the full run, where other cases have warmed caches first; code that only
+  runs when a cache is already warm is the residual gap.
 
 ## Layout
 

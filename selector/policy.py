@@ -19,6 +19,8 @@ MISS = 300.0
 # Fixed CPU cost of one verification child (fork, overlay, importing sqlglot
 # and the test modules). Measured on the target image, see README.
 VERIFY_OVERHEAD = float(os.environ.get("BR_VERIFY_OVERHEAD", "0.35"))
+# Multiplier from the maps' per-test CPU measurements to the scoring machine.
+CPU_SCALE = float(os.environ.get("BR_CPU_SCALE", "1.0"))
 # Tests whose verification would cost more than this are never verified.
 EXPENSIVE_CPU = float(os.environ.get("BR_EXPENSIVE_CPU", "3.0"))
 # Never spend more than this on verifying one commit.
@@ -30,6 +32,16 @@ PARALLEL = int(os.environ.get("BR_PARALLEL", "2"))
 # never differed, and no cheap test failed.
 PROBE_MIN_COUNT = int(os.environ.get("BR_PROBE_MIN_COUNT", "50"))
 PROBE_MIN_TESTS = int(os.environ.get("BR_PROBE_MIN_TESTS", "3"))
+# Run fixture-loop tests restricted to the cases a patch can affect.
+CASE_RESTRICT = os.environ.get("BR_CASE_RESTRICT", "1") == "1"
+
+# Probability that one candidate test fails, by reason (measured on the kit
+# sample and the labelled validation sets: ~0.13-0.26 for function-body edits,
+# ~0.2 for import-time edits, every fixture reader in the sample failed); long
+# tests (>= 5 s) fail far less often when they are candidates (TPC-DS: 2 of 27).
+Q_FAIL = {"certain": 1.0, "data": 0.9, "pydata": 0.05, "func": 0.25, "imp": 0.2, "other": 0.3}
+Q_BIG = float(os.environ.get("BR_Q_BIG", "0.2"))
+EXPENSIVE_SHARE = float(os.environ.get("BR_EXPENSIVE_SHARE", "0.6"))
 
 # Rough probability that a candidate set contains a failure, by reason.
 # (Calibrated on the 30 sample commits: about 60% of code edits that reach any
@@ -60,6 +72,7 @@ class Plan:
     failed: set[int] | None = None
     import_errors: dict = field(default_factory=dict)
     verify_cpu_estimate: float = 0.0
+    restrict: dict = field(default_factory=dict)  # number -> {fixture: case ordinals} for restricted runs
     note: str = ""
 
     def final_tests(self) -> set[int]:
@@ -78,6 +91,32 @@ class Plan:
             chosen |= set(self.import_fallback.get(module, ()))
         return chosen
 
+
+    def explain(self) -> dict:
+        """number -> how it got into the final selection (dev diagnostics only)."""
+        why = {}
+        reason_of = getattr(self, "reason_of", {})
+        expensive = getattr(self, "expensive", set())
+        for n in self.include:
+            why[n] = getattr(self, "include_tag", {}).get(n) or (
+                "blind-" + ("exp-" if n in expensive else "") + reason_of.get(n, "other"))
+        if self.verify:
+            if self.failed is None:
+                for n in set(self.verify) | self.conditional:
+                    why.setdefault(n, "unverified")
+            else:
+                for n in self.failed:
+                    why.setdefault(n, "verified-fail")
+                if self.conditional and not self.inert():
+                    for n in self.conditional:
+                        why.setdefault(n, "conditional-" + ("exp" if n in expensive else "cheap"))
+        else:
+            for n in self.conditional:
+                why.setdefault(n, "conditional")
+        for module in self.import_errors:
+            for n in self.import_fallback.get(module, ()):
+                why.setdefault(n, "import-error")
+        return why
 
     def inert(self) -> bool:
         if self.failed or self.include or self.import_errors or not self.probes or self.probe_result is None:
@@ -122,8 +161,135 @@ def cpu_estimate(maps, index: int, seconds: float) -> float:
     """CPU seconds our verifier needs for one test on the scoring machine."""
     measured = maps.cpu_estimate(index) if hasattr(maps, "cpu_estimate") else None
     if measured is not None:
-        return measured
-    return max(seconds, 0.001) * 1.5
+        return measured * CPU_SCALE
+    return max(seconds, 0.001) * 1.5 * CPU_SCALE
+
+
+def case_restrictions(possible, found, maps, index_of, id_of_number) -> dict:
+    """number -> {fixture: case ordinals} for candidates that only need some of
+    their fixture cases run (see selector/cases.py). A test qualifies when every
+    reason it is a candidate is attributable to cases:
+      * code changes: the test has per-case coverage and the changed code is run
+        by some restricted run (a case, or the code outside the loops, which every
+        restricted run executes); the cases whose own coverage was hit are kept;
+      * data changes: the changed file is one of the test's case fixtures; the
+        cases that are new or whose text changed are kept.
+    Anything else (no per-case coverage, another data file the test reads, a
+    change no single-case run executes, tests/helpers.py touched) means no
+    restriction: the test runs every case."""
+    import os as _os
+
+    from .cases import changed_new_cases
+
+    if not maps.case_tests:
+        return {}
+    for f in found.files:
+        # the loaders live in tests/helpers.py; other kinds of change (new,
+        # deleted, renamed, binary files, pytest configuration) are not reasoned
+        # about per case
+        if f.path in ("tests/helpers.py", "tests/__init__.py") or f.kind not in ("py", "data", "mode"):
+            return {}
+    # One mask per reason a test can be a candidate: each Python change site, and
+    # the per-file pydata / other / certain sets. A test is restricted only if
+    # every reason that reaches it also reaches one of its restricted runs.
+    reasons = []
+    data = []
+    for f in found.files:
+        reasons.extend(m for m in f.site_masks if m)
+        reasons.extend(m for m in (f.certain, f.pydata, f.other) if m)
+        if f.kind == "data" and f.data:
+            data.append(f)
+        unattributed = f.func | f.imp
+        for m in f.site_masks:
+            unattributed &= ~m
+        if unattributed:  # a site mask we did not record: be safe
+            reasons.append(unattributed)
+    code_mask = 0
+    for m in reasons:
+        code_mask |= m
+    out = {}
+    changed_cache = {}
+    for n in possible:
+        node = id_of_number.get(n)
+        fixtures = maps.case_tests.get(node) if node else None
+        if not fixtures or n not in index_of:
+            continue
+        bit = 1 << index_of[n]
+        kinds = {_os.path.normpath(fx): kind for fx, kind in fixtures}
+        need = {key: set() for key in kinds}
+        ok = True
+        if code_mask & bit:
+            info = maps.cases.get(node)
+            if not info or any(_os.path.normpath(fx) not in need for fx in info["fixtures"]):
+                continue
+            for m in reasons:
+                if not m & bit:
+                    continue
+                hit = bool(m >> info["outside"] & 1)
+                for fx, indexes in info["fixtures"].items():
+                    key = _os.path.normpath(fx)
+                    for k, pi in enumerate(indexes):
+                        if m >> pi & 1:
+                            need[key].add(k)
+                            hit = True
+                if not hit:
+                    # this reason reaches the test but none of its restricted runs
+                    ok = False
+                    break
+            if not ok:
+                continue
+        for f in data:
+            if not f.data & bit:
+                continue
+            rel = f.path[len("tests/fixtures/"):] if f.path.startswith("tests/fixtures/") else None
+            key = _os.path.normpath(rel) if rel else None
+            if key is not None and key in {_os.path.normpath(x) for x in maps.case_also.get(node, ())}:
+                # loaded by the class fixture but never consumed by this test: the
+                # restricted run still loads (parses) the whole new file there
+                continue
+            if key not in need or f.old_text is None or f.new_text is None:
+                ok = False
+                break
+            if (f.path, kinds[key]) not in changed_cache:
+                changed_cache[(f.path, kinds[key])] = changed_new_cases(f.old_text, f.new_text, kinds[key])
+            need[key] |= changed_cache[(f.path, kinds[key])]
+        if ok:
+            out[n] = need
+    return out
+
+
+def restricted_estimate(maps, node, need, full_est) -> float:
+    """CPU of a run restricted to `need`: the code outside the loops plus each
+    kept case (per-case measurements when we have them, else a share of the
+    whole test's cost)."""
+    import os as _os
+
+    info = maps.cases.get(node)
+    if info:
+        vcpu = maps.vcpu
+        outside = vcpu[info["outside"]]
+        per_case = [vcpu[i] for indexes in info["fixtures"].values() for i in indexes]
+        whole = vcpu[maps.index[node]] if node in maps.index else None
+        if outside is not None and whole is not None and None not in per_case and len(per_case) > 1:
+            # Each case was measured alone, cold; run together they share one
+            # warm-up w, fitted so that all cases together cost the whole test.
+            marginal = [max(0.0, v - outside) for v in per_case]
+            warm = max(0.0, (sum(marginal) - max(0.0, whole - outside)) / (len(marginal) - 1))
+            total = outside
+            kept = 0
+            for fx, indexes in info["fixtures"].items():
+                for k in need.get(_os.path.normpath(fx), ()):
+                    if k < len(indexes):
+                        total += max(0.0, vcpu[indexes[k]] - outside - warm)
+                        kept += 1
+            if kept:
+                total += warm
+            return min(full_est, (total + 0.02) * CPU_SCALE)
+    cases_total = sum(maps.case_counts.get(fx, 0) for fx, _ in maps.case_tests.get(node, ()))
+    kept = sum(len(v) for v in need.values())
+    if not cases_total:
+        return full_est
+    return min(full_est, full_est * kept / cases_total + 0.05)
 
 
 def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_numbers) -> Plan:
@@ -139,10 +305,12 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
 
     if found.unknown:
         plan.include = set(seconds_of)
+        plan.include_tag = {n: "unknown-all" for n in plan.include}
         plan.note = "unknown change: everything"
         return plan
 
     certain = numbers(found.certain)
+    plan.include_tag = {n: "certain" for n in certain}
     by_reason = {"data": 0, "pydata": 0, "func": 0, "imp": 0, "other": 0}
     for f in found.files:
         by_reason["data"] |= f.data
@@ -168,9 +336,23 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
     est = {n: cpu_estimate(maps, index_of[n], seconds_of[n]) if n in index_of else seconds_of[n] * 3 + 1
            for n in possible}
     ms_of = {n: int(seconds_of[n] * 1000 + 0.5) for n in seconds_of}
+    if CASE_RESTRICT:
+        try:
+            restrict = case_restrictions(possible, found, maps, index_of, id_of_number)
+        except Exception:  # noqa: BLE001 - never needed for soundness: run every case
+            restrict = {}
+        for n, need in restrict.items():
+            reduced = restricted_estimate(maps, id_of_number[n], need, est[n])
+            if reduced < est[n]:
+                est[n] = reduced
+                plan.restrict[n] = need
 
-    expensive = {n for n in possible if est[n] > EXPENSIVE_CPU}
+    # Too costly to run here: more CPU than EXPENSIVE_CPU and more than
+    # EXPENSIVE_SHARE of the test's recorded seconds (what including it costs).
+    expensive = {n for n in possible if est[n] > max(EXPENSIVE_CPU, EXPENSIVE_SHARE * seconds_of[n])}
     cheap = possible - expensive
+    plan.reason_of = reason_of
+    plan.expensive = expensive
     reasons = {reason_of.get(n, "other") for n in possible}
     p_any = max((P_FAIL[r] for r in reasons), default=0.0)
 
@@ -181,17 +363,36 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
         classes = {"::".join(id_of_number[n].split("::")[:2]) for n in tests if n in id_of_number}
         return VERIFY_OVERHEAD + sum(est[n] for n in tests) + sum(maps.setup_cost.get(c, 0.0) for c in classes)
 
+    q_of = {}
+    for n in possible:
+        q = Q_FAIL.get(reason_of.get(n, "other"), 0.3)
+        q_of[n] = min(q, Q_BIG) if seconds_of[n] >= 5.0 else q
+
     def expected(blind, verify):
-        """Expected cost of including `blind` outright and running `verify`."""
-        if not verify:
-            return packed(certain | blind), 0.0
-        cpu = verify_cpu_of(verify)
+        """Expected cost of including `blind` outright and running `verify`:
+        CPU of the run, plus packing what is included and what fails. Long
+        verified tests (>= 1 s recorded) are priced one by one (failing, they
+        must be included after all); short ones only matter through whether
+        any fails at all (a new worker if nothing else is included)."""
         base = certain | blind
+        if not verify:
+            return packed(base), 0.0
+        cpu = verify_cpu_of(verify)
+        c0 = packed(base) if base else 0.0
+        longest = sorted((n for n in verify if seconds_of[n] >= 1.0), key=lambda n: -seconds_of[n])
+        short = [n for n in verify if seconds_of[n] < 1.0] + longest[6:]
+        none_fail = 1.0
+        for n in short:
+            none_fail *= 1.0 - q_of.get(n, 0.3)
+        p_short = min(p_any, 1.0 - none_fail)
         if base:
-            after = packed(base) + p_any * 0.5
+            after = c0 + p_short * 0.3
         else:
-            times = sorted(seconds_of[n] for n in verify)
-            after = p_any * (2.0 + 0.5 * times[-1] + 0.5 * times[len(times) // 2])
+            times = sorted(seconds_of[n] for n in short) or [0.0]
+            after = p_short * (2.0 + times[len(times) // 2])
+        for n in longest[:6]:
+            extra = (packed(base | {n}) - c0) if base else 2.0 + seconds_of[n]
+            after += q_of.get(n, 0.3) * max(0.0, extra)
         return cpu + after, cpu
 
     options = [("blind", possible, set())]
@@ -202,6 +403,13 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
         heavy = {n for n in cheap if est[n] > 1.5 * seconds_of[n] + 0.05}
         if heavy and cheap - heavy:
             options.append(("mixed", expensive | heavy, cheap - heavy))
+        # Verify only the tests that save the most recorded time per CPU second
+        # (long recorded, cheap to run here) and include the cheap tail outright.
+        ranked = sorted(cheap, key=lambda n: (-(seconds_of[n] + 0.001) / (est[n] + 0.01), n))
+        m = 1
+        while m < len(ranked):
+            options.append((f"top{m}", possible - set(ranked[:m]), set(ranked[:m])))
+            m = m * 2 if m < 4 else int(m * 1.6)
     # Probe option: every change is a side-effect-free expression in a function
     # body and nothing else is touched; expensive tests become conditional.
     probe_items = {}
@@ -270,6 +478,13 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
         plan.lite_rest = cheap - verify
         plan.lite_rest_cpu = verify_cpu_of(plan.lite_rest) if plan.lite_rest else 0.0
     plan.note = f"{name}: verify {len(verify)}, include {len(blind)} ({summary})"
+    # keep the restrictions of every test that may be run: this round, and the
+    # second round of a light probe (plan.lite_rest)
+    plan.restrict = {n: plan.restrict[n] for n in set(verify) | plan.lite_rest if n in plan.restrict}
+    restricted = {n: sum(len(v) for v in plan.restrict[n].values()) for n in verify if n in plan.restrict}
+    if restricted:
+        plan.note += " | cases " + ", ".join(f"{id_of_number[n].rsplit('::', 1)[-1]}={k}({est[n]:.1f}s)"
+                                             for n, k in sorted(restricted.items()))
 
     # Files for the overlay and modules whose import we double-check.
     for change in changes:
@@ -289,6 +504,51 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
     return plan
 
 
+_MAPS = None  # set by main for verify_groups (opens map)
+
+
+def verify_groups(plan: Plan, numbers, id_of):
+    """Split a verification into a restricted group (fixture-loop tests run on
+    some cases) and an unrestricted group. A test only joins the restricted group
+    if every restricted fixture it reads is one of its own case fixtures, so the
+    loader wrapper never trims a read we did not reason about."""
+    import os as _os
+
+    restricted = {n: plan.restrict[n] for n in numbers if n in plan.restrict}
+    if not restricted or _MAPS is None:
+        return None
+    while True:
+        allowed = {}
+        for n, need in restricted.items():
+            for fx, keep in need.items():
+                allowed.setdefault(fx, set()).update(keep)
+        moved = False
+        for n in list(restricted):
+            node = id_of[n]
+            own = {_os.path.normpath(fx) for fx, _ in _MAPS.case_tests.get(node, ())}
+            own |= {_os.path.normpath(fx) for fx in _MAPS.case_also.get(node, ())}
+            index = _MAPS.index.get(node)
+            for fx in allowed:
+                if fx in own:
+                    continue
+                if index is None or _MAPS.open_mask("tests/fixtures/" + fx) >> index & 1:
+                    del restricted[n]
+                    moved = True
+                    break
+        if not moved:
+            break
+    if not restricted:
+        return None
+    others = [id_of[n] for n in numbers if n not in restricted]
+    # Unrestricted tests that read a restricted fixture through a loader would be
+    # trimmed too if they shared the group: they run in their own group.
+    groups = []
+    if others:
+        groups.append(({}, others))
+    groups.append(({fx: sorted(v) for fx, v in allowed.items()}, [id_of[n] for n in sorted(restricted)]))
+    return groups
+
+
 def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, id_of, number_of, seconds_of) -> None:
 
     jobs = []
@@ -305,7 +565,9 @@ def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, i
         ids = [id_of[n] for n in plan.verify]
         limits = {id_of[n]: max(10.0, 6.0 * seconds_of[n] + 5.0) for n in plan.verify}
         budget = max(30.0, 4.0 * plan.verify_cpu_estimate + 15.0)
-        job = Job(plan.cid, plan.files, ids, limits, plan.check_modules, budget, probes=plan.probes or None)
+        groups = verify_groups(plan, plan.verify, id_of)
+        job = Job(plan.cid, plan.files, ids, limits, plan.check_modules, budget, probes=plan.probes or None,
+                  groups=groups)
         by_key[plan.cid] = (plan, job)
         work.append(job)
     preload(set(t.split("::", 1)[0] for job in work for t in job.tests) | {m for job in work for m in job.check_modules}, log)
@@ -317,6 +579,7 @@ def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, i
     work.sort(key=lambda j: by_key[j.key][0].verify_cpu_estimate)
     run_jobs(work, root, tmp, PARALLEL, deadline, log=log)
     for plan, job in by_key.values():
+        plan.verify_cpu = job.cpu
         if job.result is None or job.result.get("error"):
             plan.failed = None
             plan.note += " | verification unavailable"
@@ -350,7 +613,7 @@ def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, i
         ids = [id_of[n] for n in rest]
         limits = {id_of[n]: max(10.0, 6.0 * seconds_of[n] + 5.0) for n in rest}
         job2 = Job(plan.cid + "-2", plan.files, ids, limits, [], max(30.0, 4.0 * plan.lite_rest_cpu + 15.0),
-                   probes=plan.probes)
+                   probes=plan.probes, groups=verify_groups(plan, rest, id_of))
         touched = {module_name(p) for p in job2.files if p.endswith(".py")}
         job2.warm = bool(loaded) and not (touched & loaded)
         second.append((plan, job2))
@@ -361,6 +624,7 @@ def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, i
                 plan.note += " | second round unavailable"
                 continue  # conditional tests stay included
             failed2 = {number_of[i] for i in job2.result["failed"] if i in number_of}
+            plan.verify_cpu = getattr(plan, "verify_cpu", 0.0) + job2.cpu
             plan.failed |= failed2
             plan.conditional -= plan.lite_rest
             merged = {k: dict(v) for k, v in plan.probe_result.items()}
