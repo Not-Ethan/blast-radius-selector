@@ -361,7 +361,7 @@ What changed on top of M9:
 Planner CPU estimates identical to M9 except val7 (+11.2 s local for -23.3 s simulated).
 Expected on practice: same as M9 unless a tokenizer-setting edit reaches a per-case test.
 
-## M11 — soundness fix: no text-based narrowing of SQL-keyed dicts (recommended next; includes M7-M10)
+## M11 — soundness fix: no text-based narrowing of SQL-keyed dicts (superseded by M12)
 
 Commit: **34467a3** (branch br-opt). Builds on M10. Docker re-run on exactly this tree
 (`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run.
@@ -387,8 +387,82 @@ usual class-usage / name / typed narrowing. The class-keyed rule
 | val3 (40 class-level) | 270.6 | 270.6 | 0 |
 | val5 (64 new kinds) | 203.5 | 218.9 | 0 |
 | val6 (60 official-style) | 193.2 | 193.2 | 0 |
+| val7 (44 tokenizer settings) | 47.5 | 47.5 | 0 |
+| val8 (24 tokenizer settings, varied) | 202.5 | 202.5 | 0 |
+| val9 (60 more official-style, pytest labels, new) | n/a | 242.5 (oracle 160.9) | 0 |
+| val10 = the 19 SQL-key probes (pytest labels) | 11 of 19 commits missed | 0 commits missed | |
 
 Expected on practice: unchanged unless the batch edits a SQL-keyed dict entry (none in the
 kit sample or val6); then a few to ~25 s more per such commit instead of a possible 300 s
 miss. A precise replacement (runtime record of the keys each test looks up) is the next
 step.
+
+## M12 — soundness fix: module-level names read through module aliases (recommended next; includes M7-M11)
+
+Commit: **daff9bc** (branch br-opt). Builds on M11. Docker re-run on exactly this tree
+(`git archive` of the commit): valid, 0 misses, done at 126 s of the emulated run.
+
+Second miss class found by adversarial probes, present in every earlier candidate: a
+module-level binding of NAME in module M was only seen through `M.NAME` with M spelled by
+its last name, or through names imported from M or modules re-exporting it by name. Code
+that reaches M under an alias (`from sqlglot import expressions as exp`, then
+`exp.UNWRAPPED_QUERIES`; the expressions package re-exports its submodules by star import)
+was not a reader. Probe set `tools/gen_modrefs.py` (9 edits of module constants of the
+expressions package, pytest labels): M11 misses 3 commits (PERCENTILES: test_duckdb;
+CONSTANTS: 3 tests; UNWRAPPED_QUERIES: 22 tests), M12 none. M12 counts every attribute
+access `<anything>.NAME`, every use of a name bound by `from <anything> import NAME [as
+A]`, bare uses in files with a star import and string constants mentioning NAME (also
+`getattr(m, "NAME")`, which the AST-only rule missed); module identity is not tracked.
+
+| set | M11 sim | M12 sim (exact tree) | misses |
+| --- | ---: | ---: | ---: |
+| kit sample (30) | 96.8 | 96.8 | 0 |
+| val1 (199) | 1203.3 | 1203.3 | 0 |
+| val2 (120) | 564.7 | 564.7 | 0 |
+| val4 (36) | 79.3 | 79.3 | 0 |
+| val3 (40 class-level) | 270.6 | 302.0 | 0 |
+| val5 (64 new kinds) | 218.9 | 218.9 | 0 |
+| val6 (60 official-style) | 193.2 | 193.2 | 0 |
+| val7 / val8 (tokenizer settings) | 47.5 / 202.5 | 47.5 / 202.5 | 0 |
+| val9 (60 official-style) | 242.5 | 242.5 | 0 |
+| modrefs probes (9) | 3 commits missed | 0 missed | |
+| new-file probes (5: package shadowing a module, new fixture) | 0 missed | 0 missed | |
+
+Also: measurement switches `BR_PROBES=0` / `BR_CLASS_USAGE=0` (defaults unchanged; used
+for the audit below).
+
+## Narrowing rules: what guarantees each one (audit at M12)
+
+"Proof" = holds by construction given deterministic test runs at the pinned commit and
+tests that do not share state through the process; "heuristic" = an argument with known
+counterexamples or none, kept because no labelled commit broke it. Sets: sample = kit
+sample (30); val1-val10 = our labelled sets (pytest labels except the older parts of
+val1/val2/val4, re-checked where noted); probes = the adversarial sets of this round.
+
+| # | rule (where) | guarantee | exercised by |
+| --- | --- | --- | --- |
+| 1 | function-body edit -> tests that ran a changed line or entered the function (`candidates._python`) | proof: per-test line + entry coverage from a fresh interpreter; a run that executes no changed line is identical | sample, val1, val2, val6, val9 (code) |
+| 2 | unchanged AST (comments, formatting) -> nothing (`analyze`) | proof except line numbers; no test or library code reads sqlglot source lines, `__doc__`, `co_firstlineno` (grep) | comment kinds in val1/val2/val6/val9 |
+| 3 | docstring edits -> nothing | proof for this suite: the only reader of a docstring is `expressions/core.py:112` (None -> "" normalisation); no test reads one (grep) | val1 (6), val2 (5) docstring kinds |
+| 4 | no-op statements (`pass`, bare constants, `NAME = const` never mentioned elsewhere in a function without introspection) -> nothing | proof (static) | val5 dead-code kinds |
+| 5 | import-time edit -> tests that executed the statement, or imported the module when the statement is not covered | proof: class/module bodies run at import; import-time lines are in each test's coverage | val3, val2, val7, val8, val10, modrefs |
+| 6 | import check: an import-time value not provably safe -> the verifier imports the module; failure -> every importer | proof (runs the import) | val5 raising class body, val10 (MAP/ARRAY/CAST renames: 1020 failing each, all kept) |
+| 7 | class body: AND tests that used the class (instantiated it or a subclass, entered a method; a dialect and its tokenizer/parser/generator count as one) | **heuristic**: a class attribute can be read through the class object without an instance; class-body copies from other classes are subclasses in every case found (grep) | val3, val7, val8, enum probes; no miss found |
+| 8 | class body: AND lines that mention the name (text over sqlglot/, tests/, sqlglotc/, string constants included) or read attributes by computed name (getattr/hasattr/setattr/delattr with non-literal names, vars, getmembers, `__dict__`; regex of matchable names) | proof modulo computed reads outside that list (`operator.attrgetter`, `getattr_static`, `__getattribute__`: none in sqlglot or tests, grep) | val3, val2, val7, val8 |
+| 9 | typed narrowing: a `self.NAME`/`cls.NAME`/`self.dialect.NAME` line counts only for receivers whose MRO contains the edited class | proof: per-test receiver records; lines without a record keep every test that ran them | val2, val3, val6 |
+| 10 | tokenizer settings through `TokenizerCore` (M9/M10) | proof: static plumbing + per-test and per-case owner records of the observing core lines; off if the core, `_init_core` or any `TokenizerCore` mention changes | val7 (44), val8 (24), sample 4d63 |
+| 11 | truth-only / key-membership-only reads dropped when old and new values have the same truth / dict keys | proof (static AST, local flow without global/nonlocal) | val7, val8, sample 4d63 |
+| 12 | `NAME: annotation` without a value is not a read (module level, plain classes) | proof (binds nothing; dataclass-like classes excluded) | val7, val8 |
+| 13 | module-level name: every `<anything>.NAME`, uses of names bound by `from <anything> import NAME [as A]`, bare uses in star-importing files, string constants; computed-name module readers of the same package; class-only readers skipped for plain values; computed reads in a function count only tests that ran it | proof modulo the computed-read list (row 8) | modrefs probes, val3, val6 (7bef) |
+| 14 | class-keyed dict entry (`TRANSFORMS = {exp.Foo: ...}`) -> tests that built an `exp.Foo` or subclass | **heuristic**: such dicts are consulted by expression class; an explicit `D[exp.Foo]` lookup for another type would break it (none found by grep) | val1/val2 TRANSFORMS edits |
+| 15 | SQL-text keyed dicts (`KEYWORDS`, `FUNCTIONS`, ...): no extra narrowing since M11 | - | val10 (19 probes) |
+| 16 | test class: only `test*` methods changed -> those tests | proof for this suite: no test calls another test method (grep) | val1/val2 test kinds |
+| 17 | data file -> tests that opened it (Python `open` audit hook; gzip/csv go through it) | proof for this suite: tests read repository files through Python `open` (checked test_executor, helpers, jsonpath) | fixture kinds in val1/val2/val6/val9 |
+| 18 | `.sql` fixture edit touching only empty or `--` lines -> nothing | proof: every `.sql` fixture is read through `tests/helpers.py`, which drops exactly those lines (same `splitlines` filter) | val1/val6 fixture comments |
+| 19 | new file -> directory listers + lines mentioning the module's last name | **heuristic**: a module imported by a computed name that no line spells out would be missed | new-file probes (package shadowing), val1/val5 newfile kinds |
+| 20 | deleted / renamed / binary file -> openers, importers, its own tests, listers; mode-only -> nothing | proof | val2/val5, edge set |
+| 21 | pytest configuration -> everything (conftest: tests below it); unparsable patch or unknown file -> everything | proof | val5, edge set |
+| 22 | verification: candidates that pass when run here with the patch are left out | proof modulo environment (in-process unittest semantics, process pools replaced by a synchronous executor, generous limits) | every set |
+| 23 | per-case restriction: only the cases that reach the change (code) or changed (fixture) | proof modulo state carried between cases; union of case coverage = whole-test coverage for all 28 tests | val1/val2/val6 optimizer and TPC edits |
+| 24 | TPC-DS stage check: optimizer outputs equal and nothing outside `optimize()` reached -> rest of each case unchanged | proof modulo determinism (fingerprints recorded under two hash seeds) | sample 2jrq, val2/val6 TPC-DS candidates |
+| 25 | infection probes: unrun candidates (incl. expensive ones) left out when the edited expressions never evaluate differently in the cheap tests run (>= 50 evaluations, >= 3 tests) | **heuristic** (induction from the tests that ran) | val4 (built for it), sample 66ks, val1 |
