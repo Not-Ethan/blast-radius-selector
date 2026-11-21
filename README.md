@@ -64,6 +64,20 @@ ones against the patched tree and keep only the ones that fail.**
      constants of equal truth); for a dict display whose keys stay the same, lines that
      only test `key in X` are dropped too. `NAME: annotation` statements without a value
      (module level or plain classes) are not reads.
+     **Dict entries** (`selector/keyrec.py`, `selector/keyrefine.py`): every dict held by
+     a sqlglot class or module whose keys are strings, enum members or classes was
+     replaced, at build time and after importing everything, by a recording copy; each
+     test (run alone) recorded the keys it looked up and the dicts it enumerated
+     (`tools/trace_keys.py`). For an edit of such entries the selector fingerprints the
+     state of every sqlglot class and module for the pinned tree (stored in the image)
+     and the patched tree (one interpreter per commit); if every difference is an entry
+     of a recorded dict, the candidates are the tests that looked up a changed key or
+     enumerated a changed dict (plus tests without a record). **Module-level values**:
+     each test also recorded the attributes it read through sqlglot module objects
+     (`tools/trace_modattrs.py`); when the fingerprints show that only the edited
+     binding and its re-exports changed, attribute reads inside functions count through
+     those records instead of "any `x.NAME` on a line the test ran". Any other state
+     difference keeps the rules below.
      For a module-level assignment that keeps the same names bound (only the value
      changed), `from module import NAME` lines are not reads in themselves: the
      importing module's later uses of `NAME` are, and modules that re-export the name
