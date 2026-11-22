@@ -1,0 +1,12 @@
+diff --git a/sqlglot/parsers/exasol.py b/sqlglot/parsers/exasol.py
+index 0000000..1111111 100644
+--- a/sqlglot/parsers/exasol.py
++++ b/sqlglot/parsers/exasol.py
+@@ -147,6 +147,7 @@
+             column.set("table", None)
+         return column
+ 
++    @classmethod
+     def _parse_json_extract(self) -> exp.JSONExtract:
+         args = self._parse_expressions()
+         self._match_r_paren()

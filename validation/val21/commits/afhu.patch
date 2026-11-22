@@ -1,0 +1,13 @@
+diff --git a/sqlglot/parsers/tsql.py b/sqlglot/parsers/tsql.py
+index 0000000..1111111 100644
+--- a/sqlglot/parsers/tsql.py
++++ b/sqlglot/parsers/tsql.py
+@@ -724,7 +724,7 @@
+ 
+         return into
+ 
+-    def _parse_id_var(
++    def _parse_id_var_v2(
+         self,
+         any_token: bool = True,
+         tokens: Collection[TokenType] | None = None,

@@ -1,0 +1,31 @@
+diff --git a/sqlglot/expressions/array.py b/sqlglot/expressions/array.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/array.py
++++ b/sqlglot/expressions/array.py
+@@ -211,7 +211,7 @@
+     arg_types = {"this": True, "expression": False}
+ 
+ 
+-# Higher-order / lambda
++# Higher-order / lambda   
+ 
+ 
+ class Apply(Expression, Func):
+@@ -298,7 +298,7 @@
+         columns = super().selects
+         offset = self.args.get("offset")
+         if offset:
+-            columns = columns + [to_identifier("offset") if offset is True else offset]
++            columns = columns + [to_identifier("offset") if offset is True else offset]   
+         return columns
+ 
+ 
+@@ -313,7 +313,7 @@
+         keys = self.args.get("keys")
+         return keys.expressions if keys else []
+ 
+-    @property
++    @property   
+     def values(self) -> list[Expr]:
+         values = self.args.get("values")
+         return values.expressions if values else []

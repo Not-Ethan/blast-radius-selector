@@ -1,0 +1,11 @@
+diff --git a/tests/test_tokens.py b/tests/test_tokens.py
+index 0000000..1111111 100644
+--- a/tests/test_tokens.py
++++ b/tests/test_tokens.py
+@@ -237,3 +237,6 @@
+             repr(Tokenizer().tokenize("foo")),
+             "[<Token token_type: TokenType.VAR, text: foo, line: 1, col: 3, start: 0, end: 2, comments: []>]",
+         )
++
++    def test_added_by_patch(self):
++        self.assertEqual(1, 1)

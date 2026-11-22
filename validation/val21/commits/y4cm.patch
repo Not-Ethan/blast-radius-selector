@@ -1,0 +1,22 @@
+diff --git a/sqlglot/parsers/dremio.py b/sqlglot/parsers/dremio.py
+index 0000000..1111111 100644
+--- a/sqlglot/parsers/dremio.py
++++ b/sqlglot/parsers/dremio.py
+@@ -19,7 +19,7 @@
+ DATE_DELTA = t.Union[exp.DateAdd, exp.DateSub]
+ 
+ 
+-def to_char_is_numeric_handler(args: list, dialect: DialectType) -> exp.TimeToStr | exp.ToChar:
++def to_char_is_numeric_handler_renamed(args: list, dialect: DialectType) -> exp.TimeToStr | exp.ToChar:
+     expression = build_timetostr_or_tochar(args, dialect)
+     fmt = seq_get(args, 1)
+ 
+@@ -114,7 +114,7 @@
+             limit=seq_get(args, 3),
+         ),
+         "REPEATSTR": exp.Repeat.from_arg_list,
+-        "TO_CHAR": to_char_is_numeric_handler,
++        "TO_CHAR": to_char_is_numeric_handler_renamed,
+         "TO_DATE": build_formatted_time(exp.TsOrDsToDate),
+         "DATE_PART": exp.Extract.from_arg_list,
+         "DATETYPE": datetype_handler,

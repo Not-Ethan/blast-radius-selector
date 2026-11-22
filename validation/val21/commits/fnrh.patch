@@ -1,0 +1,14 @@
+diff --git a/sqlglot/optimizer/unnest_subqueries.py b/sqlglot/optimizer/unnest_subqueries.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/unnest_subqueries.py
++++ b/sqlglot/optimizer/unnest_subqueries.py
+@@ -629,9 +629,6 @@
+     return any(projection_has_aggregate(projection, windows) for projection in select.selects)
+ 
+ 
+-def _has_order_aggregate(select: exp.Select) -> bool:
+-    order = select.args.get("order")
+-    return order is not None and projection_has_aggregate(order, select.args.get("windows"))
+ 
+ 
+ def _other_operand(expression: object) -> exp.Expr | None:

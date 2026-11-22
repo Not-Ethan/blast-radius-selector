@@ -1,0 +1,379 @@
+{
+ "2exf": {
+  "kind": "default_change",
+  "desc": [
+   "sqlglot/generators/tsql.py: TSQLGenerator.columndef_sql default ' ' -> ' x'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "2xsv": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/__init__.py: no longer re-exports Dialect (from sqlglot.dialects.dialect)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "3s48": {
+  "kind": "decorator_add",
+  "desc": [
+   "sqlglot/parsers/exasol.py: ExasolParser._parse_json_extract gains @classmethod"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "4kiv": {
+  "kind": "add_test",
+  "desc": [
+   "tests/test_tokens.py: TestTokens gains test_added_by_patch (pass)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "54f2": {
+  "kind": "func_rename_everywhere",
+  "desc": [
+   "sqlglot/optimizer/helpers.py: rename projection_has_aggregate -> projection_has_aggregate_renamed and every reference in sqlglot/ (5 files)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "5f39": {
+  "kind": "param_remove",
+  "desc": [
+   "sqlglot/optimizer/annotate_types.py: TypeAnnotator.annotate loses parameter annotate_scope"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "75hz": {
+  "kind": "param_remove",
+  "desc": [
+   "sqlglot/tokenizer_core.py: TokenizerCore._scan loses parameter check_semicolon"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "794u": {
+  "kind": "param_remove",
+  "desc": [
+   "sqlglot/expressions/core.py: Expression.iter_expressions loses parameter reverse"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "86ht": {
+  "kind": "decorator_remove",
+  "desc": [
+   "sqlglot/expressions/datatypes.py: DataType.build loses @classmethod"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "97kj": {
+  "kind": "whitespace",
+  "desc": [
+   "sqlglot/generators/hive.py: trailing whitespace on 3 lines"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "9wp3": {
+  "kind": "func_rename_everywhere",
+  "desc": [
+   "sqlglot/optimizer/unnest_subqueries.py: rename unnest_subqueries -> unnest_subqueries_renamed and every reference in sqlglot/ (2 files)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "afhu": {
+  "kind": "func_rename",
+  "desc": [
+   "sqlglot/parsers/tsql.py: rename TSQLParser._parse_id_var -> _parse_id_var_v2 (callers unchanged)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "bb8w": {
+  "kind": "func_delete",
+  "desc": [
+   "sqlglot/generators/trino.py: delete TrinoGenerator.loopblock_sql"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "bipi": {
+  "kind": "whitespace",
+  "desc": [
+   "sqlglot/expressions/array.py: trailing whitespace on 3 lines"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "bt84": {
+  "kind": "func_rename_everywhere",
+  "desc": [
+   "sqlglot/generators/clickhouse.py: rename _unix_to_time_sql -> _unix_to_time_sql_renamed and every reference in sqlglot/ (9 files)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "c32k": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/__init__.py: no longer re-exports Tokenizer (from sqlglot.tokens)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "cj79": {
+  "kind": "whitespace",
+  "desc": [
+   "sqlglot/expressions/core.py: trailing whitespace on 3 lines"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "cuw7": {
+  "kind": "multi",
+  "desc": [
+   "tests/dialects/test_mysql.py: TestMySQL gains test_added_by_patch (fail)",
+   "sqlglot/parsers/fabric.py: FabricParser._parse_create gains parameter, extra_arg=None"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "dg58": {
+  "kind": "decorator_remove",
+  "desc": [
+   "sqlglot/generators/bigquery.py: _levenshtein_sql loses @unsupported_args('ins_cost', 'del_cost', 'sub_cost')"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "ea4s": {
+  "kind": "param_add",
+  "desc": [
+   "sqlglot/generators/snowflake.py: SnowflakeGenerator.with_properties gains parameter, extra_arg"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "f7x4": {
+  "kind": "func_rename",
+  "desc": [
+   "sqlglot/expressions/temporal.py: rename TsOrDsAdd.return_type -> return_type_v2 (callers unchanged)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "fmcs": {
+  "kind": "param_add",
+  "desc": [
+   "sqlglot/generators/snowflake.py: _eliminate_dot_variant_lookup gains parameter, extra_arg=None"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "fnrh": {
+  "kind": "func_delete",
+  "desc": [
+   "sqlglot/optimizer/unnest_subqueries.py: delete _has_order_aggregate"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "gq49": {
+  "kind": "func_delete",
+  "desc": [
+   "sqlglot/parsers/hive.py: delete HiveParser._parse_partition_and_order"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "h78s": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/__init__.py: no longer re-exports MappingSchema (from sqlglot.schema)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "iq8i": {
+  "kind": "whitespace",
+  "desc": [
+   "sqlglot/parsers/risingwave.py: trailing whitespace on 3 lines"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "jvbz": {
+  "kind": "param_add",
+  "desc": [
+   "sqlglot/parsers/prql.py: PRQLParser._parse_query gains parameter, extra_arg"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "kgdy": {
+  "kind": "func_rename",
+  "desc": [
+   "sqlglot/generators/exasol.py: rename _trunc_sql -> _trunc_sql_old (callers unchanged)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "m58e": {
+  "kind": "func_rename",
+  "desc": [
+   "sqlglot/optimizer/resolver.py: rename Resolver._get_all_source_columns -> _get_all_source_columns_old (callers unchanged)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "mb3s": {
+  "kind": "default_change",
+  "desc": [
+   "sqlglot/optimizer/pushdown_predicates.py: pushdown default None -> 0"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "mcd6": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/executor/__init__.py: no longer re-exports Table (from sqlglot.executor.table)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "n2ag": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/executor/__init__.py: no longer re-exports flatten_schema (from sqlglot.schema)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "n4j6": {
+  "kind": "whitespace",
+  "desc": [
+   "sqlglot/generators/dax.py: trailing whitespace on 3 lines"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "puti": {
+  "kind": "func_rename",
+  "desc": [
+   "sqlglot/trie.py: rename in_trie -> in_trie_impl (callers unchanged)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "sigb": {
+  "kind": "func_rename",
+  "desc": [
+   "sqlglot/generators/python.py: rename _div_sql -> _div_sql_impl (callers unchanged)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "uyd5": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/expressions/__init__.py: no longer re-exports _combine (from sqlglot.expressions.core)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "v835": {
+  "kind": "add_test",
+  "desc": [
+   "tests/test_build.py: TestBuild gains test_added_by_patch (parse)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "vb5i": {
+  "kind": "func_rename_everywhere",
+  "desc": [
+   "sqlglot/parsers/mysql.py: rename MySQLParser._parse_show_mysql -> _parse_show_mysql_renamed and every reference in sqlglot/ (1 files)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "vnk4": {
+  "kind": "whitespace",
+  "desc": [
+   "sqlglot/optimizer/pushdown_projections.py: trailing whitespace on 3 lines"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "w7c3": {
+  "kind": "func_rename",
+  "desc": [
+   "sqlglot/parsers/spark.py: rename SparkParser._parse_field_def -> _parse_field_def_old (callers unchanged)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "x7qe": {
+  "kind": "add_test",
+  "desc": [
+   "tests/dialects/test_tsql.py: TestTSQL gains test_added_by_patch (fail)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "xndh": {
+  "kind": "add_test",
+  "desc": [
+   "tests/test_transforms.py: TestTransforms gains test_added_by_patch (parse)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "xuhv": {
+  "kind": "func_delete",
+  "desc": [
+   "sqlglot/generators/oracle.py: delete OracleGenerator.isascii_sql"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "y4cm": {
+  "kind": "func_rename_everywhere",
+  "desc": [
+   "sqlglot/parsers/dremio.py: rename to_char_is_numeric_handler -> to_char_is_numeric_handler_renamed and every reference in sqlglot/ (1 files)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "yjaw": {
+  "kind": "add_test",
+  "desc": [
+   "tests/dialects/test_clickhouse.py: TestClickhouse gains test_added_by_patch (parse)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "ykyp": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/expressions/__init__.py: no longer re-exports Expression (from sqlglot.expressions.core)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ },
+ "zqtx": {
+  "kind": "func_rename_everywhere",
+  "desc": [
+   "sqlglot/optimizer/merge_subqueries.py: rename _merge_where -> _merge_where_renamed and every reference in sqlglot/ (1 files)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: deleted/renamed functions, defaults, signatures, decorators, re-exports, added tests, whitespace, multi-file"
+ }
+}

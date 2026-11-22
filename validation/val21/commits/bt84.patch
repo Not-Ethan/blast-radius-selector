@@ -1,0 +1,198 @@
+diff --git a/sqlglot/generators/bigquery.py b/sqlglot/generators/bigquery.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/bigquery.py
++++ b/sqlglot/generators/bigquery.py
+@@ -278,7 +278,7 @@
+     return self.func("DATE_DIFF", expression.this, expression.expression, unit)
+ 
+ 
+-def _unix_to_time_sql(self: BigQueryGenerator, expression: exp.UnixToTime) -> str:
++def _unix_to_time_sql_renamed(self: BigQueryGenerator, expression: exp.UnixToTime) -> str:
+     scale = expression.args.get("scale")
+     timestamp = expression.this
+ 
+@@ -544,7 +544,7 @@
+         exp.TsOrDsToTimestamp: rename_func("TIMESTAMP"),
+         exp.Unhex: rename_func("FROM_HEX"),
+         exp.UnixDate: rename_func("UNIX_DATE"),
+-        exp.UnixToTime: _unix_to_time_sql,
++        exp.UnixToTime: _unix_to_time_sql_renamed,
+         exp.Uuid: lambda *_: "GENERATE_UUID()",
+         exp.Values: _derived_table_values_to_unnest,
+         exp.VariancePop: rename_func("VAR_POP"),
+diff --git a/sqlglot/generators/clickhouse.py b/sqlglot/generators/clickhouse.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/clickhouse.py
++++ b/sqlglot/generators/clickhouse.py
+@@ -44,7 +44,7 @@
+     return self.func("arraySort" if asc else "arrayReverseSort", expression.this)
+ 
+ 
+-def _unix_to_time_sql(self: ClickHouseGenerator, expression: exp.UnixToTime) -> str:
++def _unix_to_time_sql_renamed(self: ClickHouseGenerator, expression: exp.UnixToTime) -> str:
+     scale = expression.args.get("scale")
+     timestamp = expression.this
+ 
+@@ -395,7 +395,7 @@
+         exp.RegexpSplit: lambda self, e: self.func(
+             "splitByRegexp", e.args.get("expression"), e.this, e.args.get("limit")
+         ),
+-        exp.UnixToTime: _unix_to_time_sql,
++        exp.UnixToTime: _unix_to_time_sql_renamed,
+         exp.Trim: lambda self, e: trim_sql(self, e, default_trim_type="BOTH"),
+         exp.VariancePop: rename_func("varPop"),
+         exp.WeekOfYear: rename_func("toISOWeek"),
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -870,7 +870,7 @@
+     return self.sql(result)
+ 
+ 
+-def _unix_to_time_sql(self: DuckDBGenerator, expression: exp.UnixToTime) -> str:
++def _unix_to_time_sql_renamed(self: DuckDBGenerator, expression: exp.UnixToTime) -> str:
+     scale = expression.args.get("scale")
+     timestamp = expression.this
+     target_type = expression.args.get("target_type")
+@@ -1840,7 +1840,7 @@
+         exp.UnixToStr: lambda self, e: self.func(
+             "STRFTIME", self.func("TO_TIMESTAMP", e.this), self.format_time(e)
+         ),
+-        exp.UnixToTime: _unix_to_time_sql,
++        exp.UnixToTime: _unix_to_time_sql_renamed,
+         exp.UnixToTimeStr: lambda self, e: f"CAST(TO_TIMESTAMP({self.sql(e, 'this')}) AS TEXT)",
+         exp.VariancePop: rename_func("VAR_POP"),
+         exp.WeekOfYear: rename_func("WEEKOFYEAR"),
+diff --git a/sqlglot/generators/hive.py b/sqlglot/generators/hive.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/hive.py
++++ b/sqlglot/generators/hive.py
+@@ -174,7 +174,7 @@
+     return self.func("UNIX_TIMESTAMP", expression.this, time_format("hive")(self, expression))
+ 
+ 
+-def _unix_to_time_sql(self: HiveGenerator, expression: exp.UnixToTime) -> str:
++def _unix_to_time_sql_renamed(self: HiveGenerator, expression: exp.UnixToTime) -> str:
+     timestamp = self.sql(expression, "this")
+     scale = expression.args.get("scale")
+     if scale in (None, exp.UnixToTime.SECONDS):
+@@ -376,7 +376,7 @@
+         exp.UnixToStr: lambda self, e: self.func(
+             "FROM_UNIXTIME", e.this, time_format("hive")(self, e)
+         ),
+-        exp.UnixToTime: _unix_to_time_sql,
++        exp.UnixToTime: _unix_to_time_sql_renamed,
+         exp.UnixToTimeStr: rename_func("FROM_UNIXTIME"),
+         exp.Unnest: rename_func("EXPLODE"),
+         exp.PartitionedByProperty: lambda self, e: f"PARTITIONED BY {self.sql(e, 'this')}",
+diff --git a/sqlglot/generators/mysql.py b/sqlglot/generators/mysql.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/mysql.py
++++ b/sqlglot/generators/mysql.py
+@@ -64,7 +64,7 @@
+     return self.func("STR_TO_DATE", expression.this, self.format_time(expression))
+ 
+ 
+-def _unix_to_time_sql(self: MySQLGenerator, expression: exp.UnixToTime) -> str:
++def _unix_to_time_sql_renamed(self: MySQLGenerator, expression: exp.UnixToTime) -> str:
+     scale = expression.args.get("scale")
+     timestamp = expression.this
+ 
+@@ -235,7 +235,7 @@
+         exp.TsOrDsDiff: lambda self, e: self.func("DATEDIFF", e.this, e.expression),
+         exp.TsOrDsToDate: _ts_or_ds_to_date_sql,
+         exp.Unicode: lambda self, e: f"ORD(CONVERT({self.sql(e.this)} USING utf32))",
+-        exp.UnixToTime: _unix_to_time_sql,
++        exp.UnixToTime: _unix_to_time_sql_renamed,
+         exp.VariancePop: rename_func("VAR_POP"),
+         exp.Week: remove_ts_or_ds_to_date(),
+         exp.WeekOfYear: remove_ts_or_ds_to_date(rename_func("WEEKOFYEAR")),
+diff --git a/sqlglot/generators/postgres.py b/sqlglot/generators/postgres.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/postgres.py
++++ b/sqlglot/generators/postgres.py
+@@ -222,7 +222,7 @@
+     return _generate
+ 
+ 
+-def _unix_to_time_sql(self: PostgresGenerator, expression: exp.UnixToTime) -> str:
++def _unix_to_time_sql_renamed(self: PostgresGenerator, expression: exp.UnixToTime) -> str:
+     scale = expression.args.get("scale")
+     timestamp = expression.this
+ 
+@@ -457,7 +457,7 @@
+         exp.Xor: bool_xor_sql,
+         exp.Year: _day_month_year_sql,
+         exp.Unicode: rename_func("ASCII"),
+-        exp.UnixToTime: _unix_to_time_sql,
++        exp.UnixToTime: _unix_to_time_sql_renamed,
+         exp.Levenshtein: _levenshtein_sql,
+         exp.JSONObjectAgg: rename_func("JSON_OBJECT_AGG"),
+         exp.JSONBObjectAgg: rename_func("JSONB_OBJECT_AGG"),
+diff --git a/sqlglot/generators/presto.py b/sqlglot/generators/presto.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/presto.py
++++ b/sqlglot/generators/presto.py
+@@ -144,7 +144,7 @@
+     return rename_func("ARBITRARY")(self, expression)
+ 
+ 
+-def _unix_to_time_sql(self: PrestoGenerator, expression: exp.UnixToTime) -> str:
++def _unix_to_time_sql_renamed(self: PrestoGenerator, expression: exp.UnixToTime) -> str:
+     scale = expression.args.get("scale")
+     timestamp = self.sql(expression, "this")
+     if scale in (None, exp.UnixToTime.SECONDS):
+@@ -433,7 +433,7 @@
+         exp.UnixToStr: lambda self, e: (
+             f"DATE_FORMAT(FROM_UNIXTIME({self.sql(e, 'this')}), {self.format_time(e)})"
+         ),
+-        exp.UnixToTime: _unix_to_time_sql,
++        exp.UnixToTime: _unix_to_time_sql_renamed,
+         exp.UnixToTimeStr: lambda self, e: f"CAST(FROM_UNIXTIME({self.sql(e, 'this')}) AS VARCHAR)",
+         exp.VariancePop: rename_func("VAR_POP"),
+         exp.With: transforms.preprocess([transforms.add_recursive_cte_column_names]),
+diff --git a/sqlglot/generators/redshift.py b/sqlglot/generators/redshift.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/redshift.py
++++ b/sqlglot/generators/redshift.py
+@@ -116,7 +116,7 @@
+         exp.TableSample: no_tablesample_sql,
+         exp.TsOrDsAdd: lambda self, e: self._date_delta_sql(e, "DATEADD"),
+         exp.TsOrDsDiff: lambda self, e: self._date_delta_sql(e, "DATEDIFF"),
+-        exp.UnixToTime: lambda self, e: self._unix_to_time_sql(e),
++        exp.UnixToTime: lambda self, e: self._unix_to_time_sql_renamed(e),
+         exp.SHA2Digest: lambda self, e: self.func(
+             "SHA2", e.this, e.args.get("length") or exp.Literal.number(256)
+         ),
+@@ -400,7 +400,7 @@
+         self.unsupported("Unsupported EXPLODE() function")
+         return ""
+ 
+-    def _unix_to_time_sql(self, expression: exp.UnixToTime) -> str:
++    def _unix_to_time_sql_renamed(self, expression: exp.UnixToTime) -> str:
+         scale = expression.args.get("scale")
+         this = self.sql(expression.this)
+ 
+diff --git a/sqlglot/generators/spark2.py b/sqlglot/generators/spark2.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/spark2.py
++++ b/sqlglot/generators/spark2.py
+@@ -79,7 +79,7 @@
+     return self.func("TO_DATE", expression.this, time_format)
+ 
+ 
+-def _unix_to_time_sql(self: Spark2Generator, expression: exp.UnixToTime) -> str:
++def _unix_to_time_sql_renamed(self: Spark2Generator, expression: exp.UnixToTime) -> str:
+     scale = expression.args.get("scale")
+     timestamp = expression.this
+ 
+@@ -222,7 +222,7 @@
+             exp.StrToDate: _str_to_date,
+             exp.StrToTime: lambda self, e: self.func("TO_TIMESTAMP", e.this, self.format_time(e)),
+             exp.TimestampTrunc: timestamptrunc_sql(),
+-            exp.UnixToTime: _unix_to_time_sql,
++            exp.UnixToTime: _unix_to_time_sql_renamed,
+             exp.VariancePop: rename_func("VAR_POP"),
+             exp.WeekOfYear: rename_func("WEEKOFYEAR"),
+             exp.WithinGroup: transforms.preprocess(

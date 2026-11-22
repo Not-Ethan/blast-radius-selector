@@ -1,0 +1,11 @@
+diff --git a/tests/dialects/test_tsql.py b/tests/dialects/test_tsql.py
+index 0000000..1111111 100644
+--- a/tests/dialects/test_tsql.py
++++ b/tests/dialects/test_tsql.py
+@@ -3274,3 +3274,6 @@
+             "IF ((@x = @y AND GETDATE() = GETDATE()) OR (GETDATE() = @t)) BEGIN SET @query_result = (SELECT MAX(id) + 1 FROM t); END",
+             "IF (@x = @y AND GETDATE() = GETDATE()) OR (GETDATE() = @t) BEGIN SET @query_result = (SELECT MAX(id) + 1 FROM t); END",
+         )
++
++    def test_added_by_patch(self):
++        self.assertEqual(1, 2)

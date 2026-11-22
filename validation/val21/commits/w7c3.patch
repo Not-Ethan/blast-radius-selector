@@ -1,0 +1,13 @@
+diff --git a/sqlglot/parsers/spark.py b/sqlglot/parsers/spark.py
+index 0000000..1111111 100644
+--- a/sqlglot/parsers/spark.py
++++ b/sqlglot/parsers/spark.py
+@@ -132,7 +132,7 @@
+         **Spark2Parser.STATEMENT_PARSERS,
+     }
+ 
+-    def _parse_field_def(self) -> exp.Expr | None:
++    def _parse_field_def_old(self) -> exp.Expr | None:
+         # ALTER TABLE ... ADD COLUMNS (a.b INT) adds field b to the struct column a
+         return self._parse_column_def(self._parse_column_ops(self._parse_field(any_token=True)))
+ 

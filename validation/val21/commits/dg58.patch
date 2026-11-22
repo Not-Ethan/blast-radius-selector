@@ -1,0 +1,12 @@
+diff --git a/sqlglot/generators/bigquery.py b/sqlglot/generators/bigquery.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/bigquery.py
++++ b/sqlglot/generators/bigquery.py
+@@ -311,7 +311,6 @@
+     return self.func(f"PARSE_{dtype}", fmt, this, expression.args.get("zone"))
+ 
+ 
+-@unsupported_args("ins_cost", "del_cost", "sub_cost")
+ def _levenshtein_sql(self: BigQueryGenerator, expression: exp.Levenshtein) -> str:
+     max_dist = expression.args.get("max_dist")
+     if max_dist:

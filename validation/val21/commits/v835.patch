@@ -1,0 +1,13 @@
+diff --git a/tests/test_build.py b/tests/test_build.py
+index 0000000..1111111 100644
+--- a/tests/test_build.py
++++ b/tests/test_build.py
+@@ -905,3 +905,8 @@
+         ]:
+             with self.subTest(sql):
+                 self.assertEqual(expression().sql(dialect[0] if dialect else None), sql)
++
++    def test_added_by_patch(self):
++        from sqlglot import parse_one
++
++        self.assertEqual(parse_one('SELECT 1').sql(), 'SELECT 1')

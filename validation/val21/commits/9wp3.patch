@@ -1,0 +1,44 @@
+diff --git a/sqlglot/optimizer/optimizer.py b/sqlglot/optimizer/optimizer.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/optimizer.py
++++ b/sqlglot/optimizer/optimizer.py
+@@ -18,7 +18,7 @@
+ from sqlglot.optimizer.qualify import qualify
+ from sqlglot.optimizer.qualify_columns import quote_identifiers
+ from sqlglot.optimizer.simplify import simplify
+-from sqlglot.optimizer.unnest_subqueries import unnest_subqueries
++from sqlglot.optimizer.unnest_subqueries_renamed import unnest_subqueries_renamed
+ from sqlglot.schema import ensure_schema
+ 
+ 
+@@ -41,7 +41,7 @@
+     qualify,
+     pushdown_projections,
+     normalize,
+-    unnest_subqueries,
++    unnest_subqueries_renamed,
+     pushdown_predicates,
+     optimize_joins,
+     eliminate_subqueries,
+diff --git a/sqlglot/optimizer/unnest_subqueries.py b/sqlglot/optimizer/unnest_subqueries.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/unnest_subqueries.py
++++ b/sqlglot/optimizer/unnest_subqueries.py
+@@ -6,7 +6,7 @@
+ from sqlglot._typing import E
+ 
+ 
+-def unnest_subqueries(expression: E) -> E:
++def unnest_subqueries_renamed(expression: E) -> E:
+     """
+     Rewrite sqlglot AST to convert some predicates with subqueries into joins.
+ 
+@@ -16,7 +16,7 @@
+     Example:
+         >>> import sqlglot
+         >>> expression = sqlglot.parse_one("SELECT * FROM x AS x WHERE (SELECT SUM(y.a) AS a FROM y AS y WHERE x.a = y.a) = 1 ")
+-        >>> unnest_subqueries(expression).sql()
++        >>> unnest_subqueries_renamed(expression).sql()
+         'SELECT * FROM x AS x LEFT JOIN (SELECT SUM(y.a) AS a, y.a AS _u_1 FROM y AS y WHERE TRUE GROUP BY y.a) AS _u_0 ON x.a = _u_0._u_1 WHERE _u_0.a = 1'
+ 
+     Args:

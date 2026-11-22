@@ -1,0 +1,13 @@
+diff --git a/sqlglot/executor/__init__.py b/sqlglot/executor/__init__.py
+index 0000000..1111111 100644
+--- a/sqlglot/executor/__init__.py
++++ b/sqlglot/executor/__init__.py
+@@ -18,7 +18,7 @@
+ from sqlglot.optimizer import optimize
+ from sqlglot.optimizer.annotate_types import annotate_types
+ from sqlglot.planner import Plan
+-from sqlglot.schema import ensure_schema, flatten_schema, nested_get, nested_set
++from sqlglot.schema import ensure_schema, nested_get, nested_set
+ 
+ logger = logging.getLogger("sqlglot")
+ 

@@ -1,0 +1,31 @@
+diff --git a/sqlglot/optimizer/merge_subqueries.py b/sqlglot/optimizer/merge_subqueries.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/merge_subqueries.py
++++ b/sqlglot/optimizer/merge_subqueries.py
+@@ -194,7 +194,7 @@
+             _merge_expressions(outer_scope, inner_scope, alias)
+             _merge_order(outer_scope, inner_scope)
+             _merge_joins(outer_scope, inner_scope, from_or_join)
+-            _merge_where(outer_scope, inner_scope, from_or_join)
++            _merge_where_renamed(outer_scope, inner_scope, from_or_join)
+             _merge_hints(outer_scope, inner_scope)
+             _pop_cte(inner_scope)
+             outer_scope.clear_cache()
+@@ -234,7 +234,7 @@
+                 _merge_expressions(outer_scope, inner_scope, alias)
+                 _merge_order(outer_scope, inner_scope)
+                 _merge_joins(outer_scope, inner_scope, from_or_join)
+-                _merge_where(outer_scope, inner_scope, from_or_join)
++                _merge_where_renamed(outer_scope, inner_scope, from_or_join)
+                 _merge_hints(outer_scope, inner_scope)
+                 outer_scope.clear_cache()
+ 
+@@ -750,7 +750,7 @@
+     return not isinstance(expression, SAFE_TO_REPLACE_UNWRAPPED)
+ 
+ 
+-def _merge_where(outer_scope: Scope, inner_scope: Scope, from_or_join: FromOrJoin) -> None:
++def _merge_where_renamed(outer_scope: Scope, inner_scope: Scope, from_or_join: FromOrJoin) -> None:
+     """
+     Merge WHERE clause of inner query into outer query.
+ 

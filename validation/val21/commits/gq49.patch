@@ -1,0 +1,20 @@
+diff --git a/sqlglot/parsers/hive.py b/sqlglot/parsers/hive.py
+index 0000000..1111111 100644
+--- a/sqlglot/parsers/hive.py
++++ b/sqlglot/parsers/hive.py
+@@ -305,15 +305,6 @@
+ 
+         return self._parse_property_assignment(exp.FileFormatProperty)
+ 
+-    def _parse_partition_and_order(
+-        self,
+-    ) -> tuple[list[exp.Expr], exp.Expr | None]:
+-        partition = (
+-            self._parse_csv(self._parse_assignment)
+-            if self._match(TokenType.DISTRIBUTE_BY)
+-            else self._parse_partition_by()
+-        )
+-        return partition, super()._parse_order(skip_order_token=self._match(TokenType.SORT_BY))
+ 
+     def _parse_parameter(self) -> exp.Parameter:
+         self._match(TokenType.L_BRACE)

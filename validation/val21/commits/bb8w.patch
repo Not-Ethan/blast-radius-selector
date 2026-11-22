@@ -1,0 +1,16 @@
+diff --git a/sqlglot/generators/trino.py b/sqlglot/generators/trino.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/trino.py
++++ b/sqlglot/generators/trino.py
+@@ -140,11 +140,6 @@
+         body = self.sql(expression, "body")
+         return f"{label_sql}WHILE {condition} DO {body}; END WHILE"
+ 
+-    def loopblock_sql(self, expression: exp.LoopBlock) -> str:
+-        label = expression.args.get("label")
+-        label_sql = f"{self.sql(label)}: " if label else ""
+-        body = self.sql(expression, "body")
+-        return f"{label_sql}LOOP {body}; END LOOP"
+ 
+     def repeatblock_sql(self, expression: exp.RepeatBlock) -> str:
+         label = expression.args.get("label")

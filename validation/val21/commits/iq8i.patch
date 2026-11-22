@@ -1,0 +1,27 @@
+diff --git a/sqlglot/parsers/risingwave.py b/sqlglot/parsers/risingwave.py
+index 0000000..1111111 100644
+--- a/sqlglot/parsers/risingwave.py
++++ b/sqlglot/parsers/risingwave.py
+@@ -38,14 +38,14 @@
+ 
+     def _parse_include_property(self) -> exp.Expr | None:
+         header: exp.Expr | None = None
+-        coldef: exp.Expr | None = None
++        coldef: exp.Expr | None = None   
+ 
+         this = self._parse_var_or_string()
+ 
+         if not self._match(TokenType.ALIAS):
+             header = self._parse_field()
+             if header:
+-                coldef = self.expression(exp.ColumnDef(this=header, kind=self._parse_types()))
++                coldef = self.expression(exp.ColumnDef(this=header, kind=self._parse_types()))   
+ 
+         self._match(TokenType.ALIAS)
+         alias = self._parse_id_var(tokens=self.ALIAS_TOKENS)
+@@ -63,4 +63,4 @@
+         else:
+             properties = None
+ 
+-        return self.expression(exp.EncodeProperty(this=this, properties=properties, key=key))
++        return self.expression(exp.EncodeProperty(this=this, properties=properties, key=key))   

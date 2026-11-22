@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/temporal.py b/sqlglot/expressions/temporal.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/temporal.py
++++ b/sqlglot/expressions/temporal.py
+@@ -147,7 +147,7 @@
+     arg_types = {"this": True, "expression": True, "unit": False, "return_type": False}
+ 
+     @property
+-    def return_type(self) -> DataType:
++    def return_type_v2(self) -> DataType:
+         return DataType.build(self.args.get("return_type") or DType.DATE)
+ 
+ 

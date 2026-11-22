@@ -1,0 +1,31 @@
+diff --git a/sqlglot/generators/hive.py b/sqlglot/generators/hive.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/hive.py
++++ b/sqlglot/generators/hive.py
+@@ -149,7 +149,7 @@
+         return f"({sec_diff}){factor}" if factor else sec_diff
+ 
+     months_between = unit in DIFF_MONTH_SWITCH
+-    sql_func = "MONTHS_BETWEEN" if months_between else "DATEDIFF"
++    sql_func = "MONTHS_BETWEEN" if months_between else "DATEDIFF"   
+     _, multiplier = DATE_DELTA_INTERVAL.get(unit, ("", 1))
+     multiplier_sql = f" / {multiplier}" if multiplier > 1 else ""
+     diff_sql = f"{sql_func}({self.format_args(expression.this, expression.expression)})"
+@@ -385,7 +385,7 @@
+         exp.ClusteredColumnConstraint: lambda self, e: (
+             f"({self.expressions(e, 'this', indent=False)})"
+         ),
+-        exp.NonClusteredColumnConstraint: lambda self, e: (
++        exp.NonClusteredColumnConstraint: lambda self, e: (   
+             f"({self.expressions(e, 'this', indent=False)})"
+         ),
+         exp.NotForReplicationColumnConstraint: lambda *_: "",
+@@ -539,7 +539,7 @@
+             if size_expression:
+                 size = int(size_expression.name)
+                 expression.set("this", exp.DType.FLOAT if size <= 32 else exp.DType.DOUBLE)
+-                expression.set("expressions", None)
++                expression.set("expressions", None)   
+         return super().datatype_sql(expression)
+ 
+     def version_sql(self, expression: exp.Version) -> str:

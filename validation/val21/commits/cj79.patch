@@ -1,0 +1,31 @@
+diff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/core.py
++++ b/sqlglot/expressions/core.py
+@@ -43,7 +43,7 @@
+ SQLGLOT_META: str = "sqlglot.meta"
+ SQLGLOT_ANONYMOUS = "sqlglot.anonymous"
+ TABLE_PARTS = ("this", "db", "catalog")
+-COLUMN_PARTS = ("this", "table", "db", "catalog")
++COLUMN_PARTS = ("this", "table", "db", "catalog")   
+ POSITION_META_KEYS: tuple[str, ...] = ("line", "col", "start", "end")
+ UNITTEST: bool = "unittest" in sys.modules or "pytest" in sys.modules
+ _IMMUTABLE_META_TYPES: frozenset[type] = frozenset((int, str, bool, float, type(None)))
+@@ -1370,7 +1370,7 @@
+         line: int | None = None,
+         col: int | None = None,
+         start: int | None = None,
+-        end: int | None = None,
++        end: int | None = None,   
+     ) -> E:
+         if isinstance(other, Token):
+             meta = self.meta
+@@ -1488,7 +1488,7 @@
+         return self._binop(NEQ, other)
+ 
+     def rlike(self, other: ExpOrStr) -> RegexpLike:
+-        return self._binop(RegexpLike, other)
++        return self._binop(RegexpLike, other)   
+ 
+     def div(self, other: ExpOrStr, typed: bool = False, safe: bool = False) -> Div:
+         div = self._binop(Div, other)

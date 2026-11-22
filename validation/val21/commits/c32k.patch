@@ -1,0 +1,13 @@
+diff --git a/sqlglot/__init__.py b/sqlglot/__init__.py
+index 0000000..1111111 100644
+--- a/sqlglot/__init__.py
++++ b/sqlglot/__init__.py
+@@ -52,7 +52,7 @@
+ from sqlglot.generator import Generator as Generator
+ from sqlglot.parser import Parser as Parser
+ from sqlglot.schema import MappingSchema as MappingSchema, Schema as Schema
+-from sqlglot.tokens import Token as Token, Tokenizer as Tokenizer, TokenType as TokenType
++from sqlglot.tokens import Token as Token, TokenType as TokenType
+ 
+ if t.TYPE_CHECKING:
+     from sqlglot._typing import E, GeneratorArgs, ParserNoDialectArgs

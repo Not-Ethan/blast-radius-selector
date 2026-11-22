@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/snowflake.py b/sqlglot/generators/snowflake.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/snowflake.py
++++ b/sqlglot/generators/snowflake.py
+@@ -335,7 +335,7 @@
+     return expression
+ 
+ 
+-def _eliminate_dot_variant_lookup(expression: exp.Expr) -> exp.Expr:
++def _eliminate_dot_variant_lookup(expression: exp.Expr, extra_arg=None) -> exp.Expr:
+     if isinstance(expression, exp.Select):
+         # This transformation is used to facilitate transpilation of BigQuery `UNNEST` operations
+         # to Snowflake. It should not affect roundtrip because `Unnest` nodes cannot be produced

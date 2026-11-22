@@ -1,0 +1,13 @@
+diff --git a/tests/test_transforms.py b/tests/test_transforms.py
+index 0000000..1111111 100644
+--- a/tests/test_transforms.py
++++ b/tests/test_transforms.py
+@@ -458,3 +458,8 @@
+             ),
+             "SELECT ARRAY(STRUCT('Alice' AS name, 85), STRUCT('Bob', 92))",
+         )
++
++    def test_added_by_patch(self):
++        from sqlglot import parse_one
++
++        self.assertEqual(parse_one('SELECT 1').sql(), 'SELECT 1')

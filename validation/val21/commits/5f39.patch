@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/annotate_types.py b/sqlglot/optimizer/annotate_types.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/annotate_types.py
++++ b/sqlglot/optimizer/annotate_types.py
+@@ -262,7 +262,7 @@
+ 
+         return expression
+ 
+-    def annotate(self, expression: E, annotate_scope: bool = True) -> E:
++    def annotate(self, expression: E) -> E:
+         # This flag is used to avoid costly scope traversals when we only care about annotating
+         # non-column expressions (partial type inference), e.g., when simplifying in the optimizer
+         if annotate_scope:

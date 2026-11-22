@@ -1,0 +1,13 @@
+diff --git a/tests/dialects/test_clickhouse.py b/tests/dialects/test_clickhouse.py
+index 0000000..1111111 100644
+--- a/tests/dialects/test_clickhouse.py
++++ b/tests/dialects/test_clickhouse.py
+@@ -2449,3 +2449,8 @@
+ 
+         # Digit separators still apply to actual numbers
+         self.validate_identity("SELECT 1_000", "SELECT 1000")
++
++    def test_added_by_patch(self):
++        from sqlglot import parse_one
++
++        self.assertEqual(parse_one('SELECT 1').sql(), 'SELECT 1')

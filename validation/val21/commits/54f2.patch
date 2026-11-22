@@ -1,0 +1,127 @@
+diff --git a/sqlglot/optimizer/helpers.py b/sqlglot/optimizer/helpers.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/helpers.py
++++ b/sqlglot/optimizer/helpers.py
+@@ -21,7 +21,7 @@
+     )
+ 
+ 
+-def projection_has_aggregate(
++def projection_has_aggregate_renamed(
+     projection: exp.Expr,
+     windows: list[exp.Window] | None = None,
+ ) -> bool:
+diff --git a/sqlglot/optimizer/merge_subqueries.py b/sqlglot/optimizer/merge_subqueries.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/merge_subqueries.py
++++ b/sqlglot/optimizer/merge_subqueries.py
+@@ -7,7 +7,7 @@
+ 
+ from sqlglot import expressions as exp
+ from sqlglot.helper import find_new_name, seq_get
+-from sqlglot.optimizer.helpers import is_implicit_group_by_all, projection_has_aggregate
++from sqlglot.optimizer.helpers import is_implicit_group_by_all, projection_has_aggregate_renamed
+ from sqlglot.optimizer.scope import Scope, find_all_in_scope, traverse_scope
+ 
+ if t.TYPE_CHECKING:
+@@ -269,7 +269,7 @@
+ 
+         windows = outer_args.get("windows")
+         for s in t.cast(exp.Select, outer).selects:
+-            if projection_has_aggregate(s, windows):
++            if projection_has_aggregate_renamed(s, windows):
+                 continue
+             if any(
+                 column.table != inner_name or column.name not in column_free_aliases
+diff --git a/sqlglot/optimizer/pushdown_predicates.py b/sqlglot/optimizer/pushdown_predicates.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/pushdown_predicates.py
++++ b/sqlglot/optimizer/pushdown_predicates.py
+@@ -4,7 +4,7 @@
+ import typing as t
+ 
+ from sqlglot import exp
+-from sqlglot.optimizer.helpers import projection_has_aggregate
++from sqlglot.optimizer.helpers import projection_has_aggregate_renamed
+ from sqlglot.optimizer.normalize import normalized
+ from sqlglot.optimizer.scope import build_scope, find_in_scope, Scope
+ from sqlglot.optimizer.simplify import simplify
+@@ -319,8 +319,8 @@
+ 
+     windows = select.args.get("windows")
+     order = select.args.get("order")
+-    return any(projection_has_aggregate(s, windows) for s in select.selects) or (
+-        order is not None and projection_has_aggregate(order, windows)
++    return any(projection_has_aggregate_renamed(s, windows) for s in select.selects) or (
++        order is not None and projection_has_aggregate_renamed(order, windows)
+     )
+ 
+ 
+diff --git a/sqlglot/optimizer/pushdown_projections.py b/sqlglot/optimizer/pushdown_projections.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/pushdown_projections.py
++++ b/sqlglot/optimizer/pushdown_projections.py
+@@ -6,7 +6,7 @@
+ from sqlglot import alias, exp
+ from sqlglot.errors import OptimizeError
+ from sqlglot.helper import seq_get
+-from sqlglot.optimizer.helpers import is_implicit_group_by_all, projection_has_aggregate
++from sqlglot.optimizer.helpers import is_implicit_group_by_all, projection_has_aggregate_renamed
+ from sqlglot.optimizer.journal import Journal, record
+ from sqlglot.optimizer.scope import Scope, find_all_in_scope, traverse_scope
+ 
+@@ -142,7 +142,7 @@
+                 scopes=scopes,
+                 live={scope: 1},
+                 selections={scope: [1] * len(query.selects)},
+-                is_agg={scope: any(projection_has_aggregate(s, windows) for s in query.selects)},
++                is_agg={scope: any(projection_has_aggregate_renamed(s, windows) for s in query.selects)},
+                 group_by_ordinals={scope: _group_by_ordinal_refs(query)},
+                 set_names={},
+             )
+@@ -524,7 +524,7 @@
+         if isinstance(node, exp.SET_RETURNING_FUNCTIONS):
+             has_srf = True
+ 
+-    aggregate = has_aggregate_or_window and projection_has_aggregate(selection, windows)
++    aggregate = has_aggregate_or_window and projection_has_aggregate_renamed(selection, windows)
+     return aggregate, has_column, has_srf
+ 
+ 
+diff --git a/sqlglot/optimizer/unnest_subqueries.py b/sqlglot/optimizer/unnest_subqueries.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/unnest_subqueries.py
++++ b/sqlglot/optimizer/unnest_subqueries.py
+@@ -2,7 +2,7 @@
+ from sqlglot import exp
+ from sqlglot.helper import name_sequence
+ from sqlglot.optimizer.scope import ScopeType, find_in_scope, traverse_scope
+-from sqlglot.optimizer.helpers import projection_has_aggregate
++from sqlglot.optimizer.helpers import projection_has_aggregate_renamed
+ from sqlglot._typing import E
+ 
+ 
+@@ -63,7 +63,7 @@
+                 or parent.args.get("having")
+                 or (
+                     (qualify := parent.args.get("qualify"))
+-                    and projection_has_aggregate(qualify, parent.args.get("windows"))
++                    and projection_has_aggregate_renamed(qualify, parent.args.get("windows"))
+                 )
+             )
+             and _is_post_aggregation(select, parent)
+@@ -626,12 +626,12 @@
+ 
+ def _has_aggregate_projection(select: exp.Select) -> bool:
+     windows = select.args.get("windows")
+-    return any(projection_has_aggregate(projection, windows) for projection in select.selects)
++    return any(projection_has_aggregate_renamed(projection, windows) for projection in select.selects)
+ 
+ 
+ def _has_order_aggregate(select: exp.Select) -> bool:
+     order = select.args.get("order")
+-    return order is not None and projection_has_aggregate(order, select.args.get("windows"))
++    return order is not None and projection_has_aggregate_renamed(order, select.args.get("windows"))
+ 
+ 
+ def _other_operand(expression: object) -> exp.Expr | None:

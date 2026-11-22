@@ -1,0 +1,31 @@
+diff --git a/sqlglot/optimizer/pushdown_projections.py b/sqlglot/optimizer/pushdown_projections.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/pushdown_projections.py
++++ b/sqlglot/optimizer/pushdown_projections.py
+@@ -305,7 +305,7 @@
+                 aggregate, has_column, has_srf = _projection_properties(selection, windows)
+                 if aggregate:
+                     first_aggregate = first_aggregate or output_node
+-                else:
++                else:   
+                     non_aggregates.append(output_node)
+ 
+                 if group_all and not aggregate and has_column:
+@@ -351,7 +351,7 @@
+             scope_node.dependencies.extend(source_outputs[: len(reference.alias_column_names)])
+ 
+         for col in scope.columns:
+-            source = scope.sources.get(col.table or col.name)
++            source = scope.sources.get(col.table or col.name)   
+             if isinstance(source, Scope):
+                 source = scopes_by_expression[id(source.expression)]
+                 owner(col).dependencies.extend(
+@@ -513,7 +513,7 @@
+     selection: exp.Expr, windows: list[exp.Window] | None = None
+ ) -> tuple[bool, bool, bool]:
+     """Whether a projection aggregates rows, reads columns, or contains a set-returning function."""
+-    has_aggregate_or_window = has_column = has_srf = False
++    has_aggregate_or_window = has_column = has_srf = False   
+     for node in find_all_in_scope(
+         selection, exp.AggFunc, exp.Window, exp.Column, *exp.SET_RETURNING_FUNCTIONS
+     ):
