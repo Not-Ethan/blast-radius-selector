@@ -1,29 +1,28 @@
 
 # Candidate submissions (branch br-opt)
 
-> **Final entry if the cutoff were now: M25 (4c85b5e)** — practice **161.1 s (132.333
-> simulated + 27.87-28.83 CPU), 0 missed**; covers the most (M24's two fixes plus the
-> state-leak guard). Fallback: M24 (ffad41e), practice 159.9 s (140.205 + 19.64-19.75), 0
-> missed. M23 (151.6) carries two real miss classes.
+> **Targeted copy-edit labelling (val25): 0 leaks to unselected tests.** 49 copy/aliasing
+> edits where a leak is most plausible, one full-suite pytest process each: 11 commits with
+> failing tests; one (generator `_build_dispatch` storing `cls.TRANSFORMS` itself) has real
+> leak victims (10 of 12 sampled failing tests pass alone), all selected by every build (it
+> writes shared state, so even M27 keeps the full guard for it). M24, M27, M28 and M29 leave
+> 0 failing tests out. With val17 and val19: 112 labelled copy edits, none leaving a failing
+> test outside the plain (unguarded) selection.
 >
-> Reading the two scores: M24's simulated is back at M22's 140.205 because its new
-> dunder fallback fired on `__firstlineno__` (Python 3.13 class metadata that moves when lines
-> above a class move), undoing the state-comparison narrowing; M25 exempts it (132.333, as
-> M23). M25's CPU is about 8.5 s above M24's: locally the only plan difference between them
-> on the official-style sets is the state check on copy-default flips (val9 gjrx: 125
-> candidates run whole, +8.9 s local CPU, -1.8 s simulated), so the practice batch very
-> likely has such a commit.
+> **Final entry if the cutoff were now: M25 (4c85b5e)**, practice 161.1, 0 missed (the
+> coordinator moves to M27 or its successor on the count above). Scored sound alternatives:
+> M27 (6e4195b) **155.6 s = 132.333 + 23.25-23.53 CPU, 0 missed**; M24 (ffad41e) 159.9.
 >
-> **Recommended next: M27 (6e4195b)** = M25 + M26 (nested dicts fingerprinted in order,
-> `except ... as e` names are locals) + the state check for copy-only edits only while cheap
-> (<= 3 s local CPU; otherwise planned as M24) + unbound names in an edited body are
-> NameErrors, not shared writes + `self.<class-level name>` writes count as shared. Every set
-> 0 missed; simulated = M25 everywhere except copy edits planned as M24 (val9 235.1, val17
-> 251.4, val19 345.7, val22 673.9). val9 CPU, 3 interleaved rounds: M24 21.4-22.0, M25
-> 30.4-31.3, M27 20.5-21.9 s (M25's excess is gjrx's 125-test check, 9-10 s). Docker check on
-> the exact tree: kit sample valid, 0 misses, 121.616 s, 132 s wall, build 494 s; 7 flagged
-> commits valid, 0 misses. Expected on practice: about M25's simulated (132.3) at about
-> M24's CPU (19.7), i.e. about 152 s.
+> **Recommended next: M29 (fa750f1)** = M27 + M28's extra triggers + no state check for
+> copy-only edits (they are planned as any other commit; edits that write shared state keep
+> the full guard). Why: M27's CPU is still about 4 s above M23/M24 at M25's simulated
+> time; on the official-style sets the only plan difference between M23 and M27 is the
+> cheap copy-only check (val1 b4b5: 1.9 s instead of 0.4 s local), so the practice batch
+> very likely runs one or two of them. Every set 0 missed (val1-val25, kinds2, sample).
+> Expected: about M23's simulated (132.7) at about M23/M24's CPU (19-20), i.e. about 152 s.
+> Docker check on the exact tree: kit sample valid, 0 misses, simulated 96.839 s (the
+> emulated run finished at 94 s on a quieter host, same as native), 99 s wall, from-scratch
+> build 335 s; the 7 flagged commits valid, 0 misses.
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
@@ -1124,3 +1123,45 @@ the pinned fingerprints precomputed as in the image, user+sys of the whole run:
 
 M25's +9 s is exactly gjrx's state check, the size of M25's practice excess over M24.
 Expected on practice: M25's simulated (about 132.3) at about M24's CPU (about 19.7).
+
+## M28 — leak triggers for shared objects passed to calls and changed writer calls (superseded by M29)
+
+Commit **92de728** (on M27). Copy-only trigger: an UPPERCASE class- or module-level object
+newly passed to a call on a changed line. Write trigger: a changed call to `_try_load` or
+`_parse_connect_with_prior` (the writers sqlglot calls explicitly). Neither fires on any
+validation commit or the kit sample: selections equal M27's. Docker check on the exact tree:
+kit sample valid, 0 misses, 121.616 s, build 716 s; leakmix valid, 0 misses, 159.575 s.
+
+## val25 — 49 copy edits where a leak is most plausible (full-suite labels)
+
+`tools/gen_leaks3.py` (seed 31) plus 4 hand-made mutable defaults: shared containers and
+templates returned or stored without a copy (6: `dict(cls.TRANSFORMS)`, tokenizer escape
+sets, ...), template copies removed (6), `copy=copy -> False` (5), copy defaults flipped
+(14, including `Generator.generate`, `subquery`, `paren`), `copy=False` added to builder
+calls in optimizer/generator/dialect/parser code (14), mutable defaults used directly (4:
+`MappingSchema(mapping={})`, `udf_mapping={}`, `ParseError(errors=[])`,
+`flatten_schema(keys=[])`). 11 commits fail tests. Isolated reruns of up to 12 failing tests
+per commit: only qcvy (`_build_dispatch` storing `cls.TRANSFORMS`, the same edit as val17
+lyd3) has victims that pass alone (10 of 12); every other failing test fails alone too.
+Misses: M24 0, M27 0, M28 0, M28 without copy checks 0. The 4 mutable defaults write shared
+state (soft write) and include every test in M27/M28/M29 (their checks are too costly);
+none of them fails a test in the full suite.
+
+## M29 — no state check for copy-only edits (recommended next)
+
+Commit **fa750f1** = M28 with `BR_LEAK_COPY_MAX_CPU=0`: an edit that only changes copying is
+planned as any other commit. Evidence above (112 labelled copy edits, none leaving a failing
+test outside the plain selection). Edits that write shared state keep the full guard (val18
+leak controls: 0 missed; c004's 10 victims caught).
+
+| set | M27 | M29 | misses |
+| --- | ---: | ---: | ---: |
+| kit sample / val6 / val9 | 96.8 / 193.2 / 235.1 | same | 0 |
+| val1 | 1073.2 | 1073.2 (b4b5 planned as M23) | 0 |
+| val17 / val18 / val19 / val20 | 251.4 / 147.3 / 345.7 / 10.5 | same | 0 |
+| val22 / val23 / val24 / val25 | 673.9 / 129.0 / 76.4 / 476.6 | same | 0 |
+
+Kit-sample CPU of the exact tree on a quieter host: 9.97 s (M23-level). Exact-tree
+validation: every set val1-val25, kinds2/val21 and the kit sample, 0 misses, simulated as in
+the table and identical to M27 elsewhere. Docker check: kit sample valid, 0 misses, 96.839 s
+emulated, 99 s wall, build 335 s; leakmix valid, 0 misses.
