@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generator.py b/sqlglot/generator.py
+index 0000000..1111111 100644
+--- a/sqlglot/generator.py
++++ b/sqlglot/generator.py
+@@ -27,7 +27,7 @@
+ 
+ _HIGH_BYTE_RE = re.compile(r"[\x80-\xff]")
+ 
+-ESCAPED_UNICODE_RE = re.compile(r"\\(\d+)")
++ESCAPED_UNICODE_RE = re.compile(r"\\(\d{2,})")
+ UNSUPPORTED_TEMPLATE = "Argument '{}' is not supported for expression '{}' when targeting {}."
+ 
+ 

@@ -126,6 +126,8 @@ def main():
     ap.add_argument("--tmp", default=None)
     ap.add_argument("--all", action="store_true",
                     help="run the whole suite in one pytest process (files in tests.json order) for every patch")
+    ap.add_argument("--dir", action="store_true",
+                    help="with --all: collect the tests directory (as `pytest tests`), so new test files are imported")
     o = ap.parse_args()
 
     repo = os.path.realpath(o.repo)
@@ -210,6 +212,8 @@ def main():
             # whole files only (the plugin deselects the rest): a single node id
             # that no longer exists would make pytest run nothing at all
             args.append(f)
+        if o.dir and o.all:
+            args = ["tests"]
         out = os.path.join(tmp_base, f"lab_{cid}.json")
         argfile = os.path.join(tmp_base, f"lab_{cid}.args")
         with open(argfile, "w") as handle:

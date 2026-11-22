@@ -1,0 +1,13 @@
+diff --git a/sqlglot/helper.py b/sqlglot/helper.py
+index 0000000..1111111 100644
+--- a/sqlglot/helper.py
++++ b/sqlglot/helper.py
+@@ -90,7 +90,7 @@
+     if isinstance(value, tuple):
+         return list(value)
+ 
+-    return [value]
++    return (value,)
+ 
+ 
+ @t.overload

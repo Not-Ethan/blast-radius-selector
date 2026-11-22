@@ -89,6 +89,63 @@ def decode_source(raw: bytes) -> str | None:
     return text
 
 
+def _collected_by_pytest(rel: str) -> bool:
+    base = os.path.basename(rel)
+    return rel.startswith("tests/") and rel.endswith(".py") and (base.startswith("test_") or base.endswith("_test.py"))
+
+
+def _inert_test_module(text: str | None) -> bool:
+    """A module whose import only binds names: imports, functions, classes whose bodies only
+    define functions or bind constants, constant assignments, a docstring, a __main__ block."""
+    import ast as _ast
+
+    if text is None:
+        return False
+    try:
+        tree = _ast.parse(text)
+    except (SyntaxError, ValueError):
+        return False
+
+    def constant(node) -> bool:
+        if isinstance(node, _ast.Constant):
+            return True
+        if isinstance(node, (_ast.Tuple, _ast.List, _ast.Set)):
+            return all(constant(e) for e in node.elts)
+        if isinstance(node, _ast.Dict):
+            return all(k is not None and constant(k) for k in node.keys) and all(constant(v) for v in node.values)
+        return False
+
+    def simple_decorator(node) -> bool:
+        target = node.func if isinstance(node, _ast.Call) else node
+        while isinstance(target, _ast.Attribute):
+            target = target.value
+        return isinstance(target, _ast.Name) and (not isinstance(node, _ast.Call) or all(
+            constant(a) for a in list(node.args) + [k.value for k in node.keywords]))
+
+    def stmt_ok(node, in_class=False) -> bool:
+        if isinstance(node, (_ast.Import, _ast.ImportFrom, _ast.Pass)):
+            return not in_class or isinstance(node, _ast.Pass)
+        if isinstance(node, _ast.Expr) and isinstance(node.value, _ast.Constant):
+            return True
+        if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+            return all(simple_decorator(d) for d in node.decorator_list) and all(
+                constant(d) for d in list(node.args.defaults) + [k for k in node.args.kw_defaults if k is not None])
+        if isinstance(node, _ast.ClassDef):
+            return all(simple_decorator(d) for d in node.decorator_list) and all(
+                isinstance(b, (_ast.Name, _ast.Attribute)) for b in node.bases) and not node.keywords and all(
+                stmt_ok(b, in_class=True) for b in node.body)
+        if isinstance(node, (_ast.Assign, _ast.AnnAssign)):
+            value = node.value
+            targets = node.targets if isinstance(node, _ast.Assign) else [node.target]
+            return all(isinstance(t, _ast.Name) for t in targets) and (value is None or constant(value))
+        if isinstance(node, _ast.If) and not in_class:
+            test = node.test
+            return isinstance(test, _ast.Compare) and isinstance(test.left, _ast.Name) and test.left.id == "__name__"
+        return False
+
+    return all(stmt_ok(n) for n in tree.body)
+
+
 class CandidateFinder:
     def __init__(self, maps: Maps, repo_root: str):
         self.maps = maps
@@ -281,6 +338,13 @@ class CandidateFinder:
     def _new_file(self, rel: str, new_text: str | None, report: FileReport):
         maps = self.maps
         report.kind = "new"
+        if _collected_by_pytest(rel) and not _inert_test_module(new_text):
+            # pytest imports every test module before the first test runs: code that a new
+            # test module runs at import (or a module that does not even import) can change
+            # what every test sees.
+            report.detail = "new test module that runs code at import"
+            report.other |= maps.all_mask
+            return
         mask = 0
         directory = os.path.dirname(rel) or "."
         mask |= maps.list_mask(directory)

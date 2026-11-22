@@ -1,0 +1,14 @@
+diff --git a/sqlglot/expressions/__init__.py b/sqlglot/expressions/__init__.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/__init__.py
++++ b/sqlglot/expressions/__init__.py
+@@ -11,8 +11,8 @@
+ ----
+ """
+ 
++from sqlglot.expressions.datatypes import *  # noqa: F401,F403
+ from sqlglot.expressions.core import *  # noqa: F401,F403
+-from sqlglot.expressions.datatypes import *  # noqa: F401,F403
+ from sqlglot.expressions.constraints import *  # noqa: F401,F403
+ from sqlglot.expressions.properties import *  # noqa: F401,F403
+ from sqlglot.expressions.query import *  # noqa: F401,F403

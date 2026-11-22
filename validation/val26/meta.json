@@ -1,0 +1,114 @@
+{
+ "k501": {
+  "kind": "init_import_order",
+  "desc": [
+   "expressions/__init__.py: star import of datatypes before core"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k502": {
+  "kind": "init_import_order",
+  "desc": [
+   "sqlglot/__init__.py: diff imported before dialect"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k503": {
+  "kind": "test_decorator",
+  "desc": [
+   "test_helper.test_tsort marked expectedFailure (it passes: unexpected success)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k504": {
+  "kind": "test_decorator",
+  "desc": [
+   "TestHelper class skipped"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k505": {
+  "kind": "dataclass_default",
+  "desc": [
+   "lineage.Node.source_name default '' -> 'src'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k506": {
+  "kind": "annotation_removed",
+  "desc": [
+   "lineage.Node.reference_node_name loses its annotation (no longer a dataclass field)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k507": {
+  "kind": "annotation_only",
+  "desc": [
+   "lineage.Node.expression annotation exp.Expr -> exp.Expression"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k508": {
+  "kind": "format_string",
+  "desc": [
+   "generator.UNSUPPORTED_TEMPLATE text changed"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k509": {
+  "kind": "regex",
+  "desc": [
+   "generator.ESCAPED_UNICODE_RE needs 2+ digits"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k510": {
+  "kind": "return_type",
+  "desc": [
+   "helper.ensure_list returns a tuple for a scalar"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k511": {
+  "kind": "new_test_file",
+  "desc": [
+   "new test file whose import sets DuckDB.Generator.LIMIT_FETCH"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k512": {
+  "kind": "new_test_file",
+  "desc": [
+   "new plain test file with a failing test (not in tests.json)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k513": {
+  "kind": "file_delete",
+  "desc": [
+   "delete sqlglot/dialects/druid.py"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ },
+ "k514": {
+  "kind": "docstring_default",
+  "desc": [
+   "Expression subclasses get '-' instead of '' as missing docstring"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "kinds not in practice (init import order, test decorators, dataclass default/annotation, format string, regex, return type, new/deleted files, docstring default); labelled with pytest collecting the tests directory"
+ }
+}
