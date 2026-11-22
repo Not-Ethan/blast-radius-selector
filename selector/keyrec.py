@@ -214,6 +214,14 @@ def _slots_of(kind) -> list:
     return out
 
 
+# Read the position slots of expression nodes (arg_key, index: where the node sits in
+# its parent). The state check after a test run turns this off: shared constant nodes
+# (UnixToTime.MILLIS, duckdb's MAX_BIT_POSITION) are attached to trees at run time,
+# which moves those slots on the pinned commit too, and the walk already records
+# every child's key and position.
+EXPR_POSITION = [True]
+
+
 def _expr_fp(root, depth) -> str:
     """Fingerprint of a sqlglot expression tree: every node's class, args (in order),
     comments, type and meta, walked without recursion (trees can be deep). `parent` is
@@ -240,7 +248,7 @@ def _expr_fp(root, depth) -> str:
             todo.append(("text", "__dict__"))
             todo.append(("leaf", dict(extra)))
         for name in slots:
-            if name in ("args", "parent", "_hash"):
+            if name in ("args", "parent", "_hash") or (name in ("arg_key", "index") and not EXPR_POSITION[0]):
                 continue
             todo.append(("text", name))
             try:

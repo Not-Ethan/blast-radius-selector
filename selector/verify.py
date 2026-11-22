@@ -286,7 +286,7 @@ def _install_probes(overlay: str, probes: dict):
     return current
 
 
-def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict, check_modules: list[str], out_fd: int, memory_limit: int | None, warm: bool = False, probes: dict | None = None, groups: list | None = None):
+def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict, check_modules: list[str], out_fd: int, memory_limit: int | None, warm: bool = False, probes: dict | None = None, groups: list | None = None, leak_check: bool = False):
     result = {"failed": [], "import_errors": {}, "durations": {}, "error": None}
     try:
         if memory_limit:
@@ -337,6 +337,20 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
                 signal.setitimer(signal.ITIMER_REAL, 0)
         failed, durations = set(), {}
         result["stage"] = {}
+        before = None
+        if leak_check:
+            # State check (selector/leak.py): import the test modules first (pytest
+            # imports every test module before the first test runs), then fingerprint
+            # every sqlglot class and module and every loaded test module.
+            from selector import keyrec
+
+            keyrec.EXPR_POSITION[0] = False
+            for path in sorted({node.split("::", 1)[0] for node in tests}):
+                try:
+                    importlib.import_module(path[:-3].replace("/", "."))
+                except BaseException:  # noqa: BLE001 - run_tests reports it as failing
+                    pass
+            before = keyrec.state_fingerprint(loaded_roots=("tests",))["state"]
         for group in (groups or [({}, tests)]):
             allowed, group_tests = group[0], group[1]
             spec = group[2] if len(group) > 2 else None
@@ -382,6 +396,11 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
                     group_failed = set(group_tests)
             failed |= set(group_failed)
             durations.update(group_durations)
+        if before is not None:
+            from selector import keyrec, leak
+
+            after = keyrec.state_fingerprint(loaded_roots=("tests",))["state"]
+            result["leak"] = leak.state_leaks(before, after)[:20]
         result["failed"] = sorted(failed)
         result["durations"] = {k: round(v, 4) for k, v in durations.items()}
         result["probes"] = {k: {"count": v["count"], "infected": v["infected"], "tests": len(v["tests"])}
@@ -471,7 +490,7 @@ def run_jobs(jobs: list[Job], root: str, tmp_base: str, parallel: int, deadline:
                 os.close(read_fd)
                 code = 0
                 try:
-                    _child(overlay, root, job.files, job.tests, job.limits, job.check_modules, write_fd, memory_limit, job.warm, job.probes, job.groups)
+                    _child(overlay, root, job.files, job.tests, job.limits, job.check_modules, write_fd, memory_limit, job.warm, job.probes, job.groups, getattr(job, "leak_check", False))
                 except BaseException:  # noqa: BLE001
                     code = 1
                 os._exit(code)

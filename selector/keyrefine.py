@@ -178,9 +178,11 @@ def refine(found, changes, root: str, tmp: str, maps, log, timeout: float = 60.0
         holder, attr = key.split("\t", 1)
         if ":" not in holder or finder is None or not class_sites:
             return "state: " + holder + "." + attr + " changed"
-        if attr.startswith("_") and attr.endswith("_"):
+        if attr.startswith("_") and attr.endswith("_") and attr not in ("__firstlineno__", "__static_attributes__"):
             # dunder/sunder state (an Enum's _value2member_map_, ...) is read by the
-            # machinery behind lookups like DType("INT"), not by name
+            # machinery behind lookups like DType("INT"), not by name (Python 3.13's
+            # compile metadata __firstlineno__/__static_attributes__ is read by nothing
+            # in sqlglot or its tests: it moves when lines above a class move)
             return "state: " + holder + "." + attr + " changed"
         m = finder.runtime_attr_mask(holder, attr)
         if m is None:

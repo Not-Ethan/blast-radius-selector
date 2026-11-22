@@ -84,7 +84,8 @@ ones against the patched tree and keep only the ones that fail.**
      candidates are its runtime readers (the class-attribute rule below without
      module- or class-level lines: what import-time code derived from it is itself in
      the comparison). Any other state difference keeps the rules below.
-     Values compare by fingerprint; the order-insensitive reading applies only to the
+     Values compare by fingerprint (sqlglot expressions by their whole tree: class, args,
+     comments, type, meta; enum members with their value); the order-insensitive reading applies only to the
      few values whose order already differs between two hash seeds on the pinned
      commit (built from sets), and the patched tree is fingerprinted under the same
      seed as the stored pinned run. A dict whose common keys changed order counts as
@@ -208,6 +209,19 @@ ones against the patched tree and keep only the ones that fail.**
    only decides whether the light probe (cheapest few candidates) is offered for
    `is`/`==` swaps, and dropping still needs that observed evidence.
 
+   **State left behind for later tests** (`selector/leak.py`). pytest runs the whole
+   suite in one process, so an edit can change what a later test sees through an object
+   that outlives a test (a class attribute or table, a module global, a registry), even
+   for a test that never runs the edit. An edit inside one of the 9 sqlglot functions
+   that already write such objects includes every test. An edit that introduces such a
+   write, or changes copying/aliasing (a `copy` flag or call, a container copy, an
+   in-place operator), `global`/`nonlocal`, a mutable default or a caching decorator, is
+   narrowed as usual, and then every candidate runs in one verification child (fixture
+   loops on the cases that reach the edit) with the state of every sqlglot class and
+   module and every loaded test module fingerprinted before and after; any change the
+   pinned suite itself never makes (measured with one full pinned run,
+   `tools/br_state_plugin.py`), or a candidate too costly to run, includes every test.
+
 5. **Pack** (`selector/pack.py`): longest-processing-time packing for every worker
    count 1..8 plus a move/swap improvement pass, choosing the cheapest.
 
@@ -315,8 +329,13 @@ spot check ever failed outside the candidate set).
 
 ## Known risks
 
-* Verification reproduces the labeler's run in-process; tests that depend on global
-  state from other tests, or on real process pools, could behave differently.
+* Verification reproduces the labeler's run in-process; tests that depend on real
+  process pools could behave differently. State shared between tests is handled by the
+  leak check above, whose triggers are a static list: an edit that leaks state without
+  matching one (e.g. an edit that passes a different shared object to a function that
+  mutates its argument, with no copy involved) is not checked, and
+  the check compares state after the candidates ran, so damage repaired by a later
+  candidate is not seen.
 * The state comparison sees every attribute of every sqlglot class and module global
   (recursively through containers, functions, closures and object attributes), but
   not caches outside them (e.g. the contents of an `lru_cache` filled at import time)

@@ -83,8 +83,14 @@ class Plan:
     import_ok: bool = False  # that import check ran
     note: str = ""
     est: float | None = None  # the planner's expected cost of the chosen option (None: certain tests only)
+    leak_check: bool = False  # run every candidate in order and check the state afterwards (selector/leak.py)
+    leak_state: list | None = None  # holders the state check found changed (None: not reported)
+    everything: set[int] = field(default_factory=set)  # every test: the answer if the state check fails
 
     def final_tests(self) -> set[int]:
+        if self.leak_check and (self.failed is None or self.leak_state is None or self.leak_state):
+            # The state check did not run, or a later test could see what these left behind.
+            return set(self.everything)
         chosen = set(self.include)
         if self.verify:
             if self.failed is None:
@@ -108,6 +114,8 @@ class Plan:
     def explain(self) -> dict:
         """number -> how it got into the final selection (dev diagnostics only)."""
         why = {}
+        if self.leak_check and (self.failed is None or self.leak_state is None or self.leak_state):
+            return {n: "leak-all" for n in self.everything}
         reason_of = getattr(self, "reason_of", {})
         expensive = getattr(self, "expensive", set())
         for n in self.include:
@@ -332,6 +340,11 @@ def case_full_costs(maps, node):
     return outside + warm, {k: max(0.0, m - warm) for k, m in enumerate(marginal)}
 
 
+# State check for edits that may leak state between tests (selector/leak.py): local
+# CPU of the two fingerprints in the child, and the most a check may cost before the
+# commit simply includes every test.
+LEAK_CHECK_CPU = float(os.environ.get("BR_LEAK_CHECK_CPU", "1.2"))
+LEAK_MAX_CPU = float(os.environ.get("BR_LEAK_MAX_CPU", "20.0"))
 STATE_CHECK_CPU = float(os.environ.get("BR_STATE_CHECK_CPU", "0.65"))  # local CPU s of one comparison (0.60-0.70 measured)
 # Scorer CPU per local CPU second for this work: practice M13 -> M17 cost +9.4 s of
 # scorer CPU for about +5 s of local comparison CPU per 40 official-style commits.
@@ -479,6 +492,8 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
         plan.include = set(seconds_of)
         plan.include_tag = {n: "unknown-all" for n in plan.include}
         plan.note = "unknown change: everything"
+        if getattr(found, "leak", ""):
+            plan.note = f"may leak state to later tests ({found.leak}): everything"
         return plan
 
     certain = numbers(found.certain)
@@ -537,6 +552,42 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
                     plan.stage[n] = {"fixture": maps.stage[id_of_number[n]]["fixture"], "cases": per_case,
                                      "cap": cap if costs is not None else 0.0,
                                      "warm": costs[0] if costs else 0.0, "full": costs[1] if costs else {}}
+
+    if getattr(found, "leak_check", ""):
+        # The edit may leave state behind that later tests see (selector/leak.py):
+        # run every test that can execute it in one process (fixture-loop tests only
+        # on the cases that can: the others run no changed code), then check the
+        # state of every sqlglot class and module and every loaded test module;
+        # anything that cannot be run that way, or a changed state, means every test.
+        plan.everything = set(seconds_of)
+        run = sorted(certain | possible)
+        plan.stage = {}
+        cost = {}
+        for n in run:
+            full = cpu_estimate(maps, index_of[n], seconds_of[n]) if n in index_of else seconds_of[n] * 3 + 1
+            need = plan.restrict.get(n)
+            cost[n] = restricted_estimate(maps, id_of_number[n], need, full) if need else full
+        plan.restrict = {n: plan.restrict[n] for n in run if n in plan.restrict}
+        classes = {"::".join(id_of_number[n].split("::")[:2]) for n in run if n in id_of_number}
+        cpu = VERIFY_OVERHEAD + LEAK_CHECK_CPU + sum(cost.values()) + sum(maps.setup_cost.get(c, 0.0) for c in classes)
+        costly = [n for n in run if cost[n] > max(EXPENSIVE_CPU, EXPENSIVE_SHARE * seconds_of[n])]
+        # Worth it while its CPU plus packing what may fail stays under including everything.
+        everything_cost = pack(sorted(plan.everything), ms_of, fast=True)[1] / 1000.0
+        run_cost = pack(run, ms_of, fast=True)[1] / 1000.0
+        if costly or cpu > LEAK_MAX_CPU or cpu + 0.5 * run_cost >= everything_cost:
+            plan.include = set(plan.everything)
+            plan.include_tag = {n: "leak-all" for n in plan.include}
+            plan.restrict = {}
+            plan.note = (f"may leak state ({found.leak_check}); state check too costly "
+                         f"({len(run)} tests, {cpu:.1f}s, {len(costly)} expensive): everything")
+            return plan
+        plan.leak_check = True
+        plan.verify = run
+        plan.verify_cpu_estimate = cpu
+        plan.est = cpu
+        plan.note = f"state check ({found.leak_check}): run {len(run)} ({len(plan.restrict)} on some cases)"
+        _prepare_checks(plan, changes, found, maps, numbers, flagged_only=False)
+        return plan
 
     # Too costly to run here: more CPU than EXPENSIVE_CPU and more than
     # EXPENSIVE_SHARE of the test's recorded seconds (what including it costs).
@@ -796,6 +847,7 @@ def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, i
         groups = verify_groups(plan, plan.verify, id_of)
         job = Job(plan.cid, plan.files, ids, limits, plan.check_modules, budget, probes=plan.probes or None,
                   groups=groups)
+        job.leak_check = plan.leak_check
         by_key[plan.cid] = (plan, job)
         work.append(job)
     preload(set(t.split("::", 1)[0] for job in work for t in job.tests) | {m for job in work for m in job.check_modules}, log)
@@ -814,6 +866,9 @@ def verify_plans(plans: list[Plan], root: str, tmp: str, deadline: float, log, i
             continue
         plan.import_ok = True
         plan.failed = {number_of[i] for i in job.result["failed"] if i in number_of}
+        if plan.leak_check:
+            plan.leak_state = job.result.get("leak")
+            plan.note += f" | state after the run: {'unknown' if plan.leak_state is None else (plan.leak_state[:3] or 'unchanged')}"
         plan.import_errors = job.result.get("import_errors", {})
         if job.result.get("stage"):
             plan.note += f" | stage {job.result['stage']}"

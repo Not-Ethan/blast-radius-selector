@@ -81,6 +81,8 @@ class PyAnalysis:
     noop: bool = False
     sites: list[Site] = field(default_factory=list)
     error: str | None = None
+    old_tree: object = None  # parsed sources, reused by selector/leak.py
+    new_tree: object = None
 
 
 def _first_line(node) -> int:
@@ -881,6 +883,7 @@ def analyze_python(old_src: str, new_src: str, filename: str = "<file>") -> PyAn
         result.syntax_error = True
         result.error = str(error)
         return result
+    result.old_tree, result.new_tree = old_tree, new_tree
     differ = _Differ(old_src.split("\n"), new_src.split("\n"), filename)
     differ.lazy_annotations = _has_lazy_annotations(old_tree) and _has_lazy_annotations(new_tree)
     differ.body(old_tree.body, new_tree.body, _Ctx(), old_tree)

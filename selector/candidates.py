@@ -58,6 +58,8 @@ class FileReport:
 class CommitCandidates:
     files: list[FileReport] = field(default_factory=list)
     unknown: bool = False  # something we cannot reason about
+    leak: str = ""  # why the commit may leak state between tests: everything (selector/leak.py)
+    leak_check: str = ""  # why the commit needs the state check (selector/leak.py)
 
     @property
     def certain(self) -> int:
@@ -186,6 +188,29 @@ class CandidateFinder:
 
         if path.endswith(".py"):
             self._python(old_rel, old_raw, new_text, report)
+            # An edit that may change what later tests in the same process see
+            # (selector/leak.py): "hard" ones include every test; "soft" ones keep
+            # their narrowing but get the state check (policy.plan_commit). Only
+            # edits that change the AST can change behaviour.
+            trees = getattr(report, "trees", None)
+            if report.sites and trees is not None:
+                try:
+                    from .leak import change_lines, classify
+
+                    old_lines, new_lines, removed, added = change_lines(change)
+                    old_text = old_raw.decode("utf-8") if old_raw is not None else None
+                    hard, soft = classify(old_text, new_text, removed, added, old_lines, new_lines, trees=trees)
+                except Exception as error:  # noqa: BLE001 - cannot tell: treat as leaking
+                    hard, soft = f"leak check failed ({error!r})", None
+                if hard:
+                    report.kind = "may-leak"
+                    report.detail = hard
+                    report.other = maps.all_mask
+                    result.unknown = True
+                    result.leak = hard
+                elif soft:
+                    result.leak_check = (result.leak_check + "; " if result.leak_check else "") + f"{path}: {soft}"
+            report.trees = None
         else:
             report.kind = "data"
             try:
@@ -304,6 +329,7 @@ class CandidateFinder:
             report.certain |= self._module_tests(rel)
             return
         analysis = analyze_python(old_src, new_src, rel)
+        report.trees = {"old": analysis.old_tree, "new": analysis.new_tree}
         if analysis.error and not analysis.syntax_error:
             report.detail = analysis.error
             report.other |= self._module_tests(rel)
