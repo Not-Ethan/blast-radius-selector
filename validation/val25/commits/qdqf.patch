@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -5125,7 +5125,7 @@
+         # UUID v5 (namespace + name) - Emulate using SHA1
+         if namespace and name:
+             result = exp.replace_placeholders(
+-                self.UUID_V5_TEMPLATE.copy(),
++                self.UUID_V5_TEMPLATE,
+                 namespace=namespace,
+                 name=name,
+             )

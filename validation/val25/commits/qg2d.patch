@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/core.py
++++ b/sqlglot/expressions/core.py
+@@ -3036,7 +3036,7 @@
+     return t.cast(Condition, _combine(expressions, Xor, dialect, copy=copy, wrap=wrap, **opts))
+ 
+ 
+-def paren(expression: ExpOrStr, copy: bool = True) -> Paren:
++def paren(expression: ExpOrStr, copy: bool = False) -> Paren:
+     """
+     Wrap an expression in parentheses.
+ 

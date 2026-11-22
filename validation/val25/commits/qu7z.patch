@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -3841,7 +3841,7 @@
+ 
+         # Struct for transform: {'$1': COALESCE(arr1, [])[__i + 1], ...}
+         # COALESCE wrapping handles NULL arrays - prevents invalid NULL[i] syntax
+-        index = exp.column("__i") + 1
++        index = exp.column("__i", copy=False) + 1
+         transform_struct = exp.func(
+             "STRUCT",
+             *[

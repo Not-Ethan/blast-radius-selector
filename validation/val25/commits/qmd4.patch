@@ -1,0 +1,16 @@
+diff --git a/sqlglot/schema.py b/sqlglot/schema.py
+index 0000000..1111111 100644
+--- a/sqlglot/schema.py
++++ b/sqlglot/schema.py
+@@ -751,10 +751,9 @@
+ 
+ 
+ def flatten_schema(
+-    schema: dict[str, object], depth: int | None = None, keys: list[str] | None = None
++    schema: dict[str, object], depth: int | None = None, keys: list[str] | None = []
+ ) -> list[list[str]]:
+     tables: list[list[str]] = []
+-    keys = keys or []
+     depth = dict_depth(schema) - 1 if depth is None else depth
+ 
+     for k, v in schema.items():

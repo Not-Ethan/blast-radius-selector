@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/query.py b/sqlglot/expressions/query.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/query.py
++++ b/sqlglot/expressions/query.py
+@@ -129,7 +129,7 @@
+     ) -> Q:
+         raise NotImplementedError("Query objects must implement `select`")
+ 
+-    def subquery(self, alias: ExpOrStr | None = None, copy: bool = True) -> Subquery:
++    def subquery(self, alias: ExpOrStr | None = None, copy: bool = False) -> Subquery:
+         """
+         Returns a `Subquery` that wraps around this query.
+ 

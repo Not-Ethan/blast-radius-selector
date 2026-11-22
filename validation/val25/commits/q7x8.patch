@@ -1,0 +1,13 @@
+diff --git a/sqlglot/transforms.py b/sqlglot/transforms.py
+index 0000000..1111111 100644
+--- a/sqlglot/transforms.py
++++ b/sqlglot/transforms.py
+@@ -184,7 +184,7 @@
+                 quoted: bool | None = (
+                     select.this.args.get("quoted") if isinstance(select, exp.Column) else None
+                 )
+-                select = select.replace(exp.alias_(select, alias, quoted=quoted))
++                select = select.replace(exp.alias_(select, alias, quoted=quoted, copy=False))
+ 
+             taken_names.add(select.output_name)
+             new_selects.append(select.args["alias"])

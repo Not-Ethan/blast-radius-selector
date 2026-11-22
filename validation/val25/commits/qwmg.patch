@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -699,7 +699,7 @@
+ 
+     if signed:
+         half = exp.Literal.number(2 ** (bits - 1))
+-        return exp.replace_placeholders(_SEQ_SIGNED.copy(), base=base, max_val=max_val, half=half)
++        return exp.replace_placeholders(_SEQ_SIGNED, base=base, max_val=max_val, half=half)
+     return exp.replace_placeholders(_SEQ_UNSIGNED.copy(), base=base, max_val=max_val)
+ 
+ 

@@ -1,0 +1,13 @@
+diff --git a/sqlglot/parser.py b/sqlglot/parser.py
+index 0000000..1111111 100644
+--- a/sqlglot/parser.py
++++ b/sqlglot/parser.py
+@@ -4455,7 +4455,7 @@
+             if modifier := values.args.get(key):
+                 values.set(key, None)
+                 select.set(key, modifier)
+-        return select.from_(values if values.alias else exp.alias_(values, "_values", table=True))
++        return select.from_(values if values.alias else exp.alias_(values, "_values", table=True, copy=False))
+ 
+     def _parse_table_alias(
+         self, alias_tokens: t.Collection[TokenType] | None = None

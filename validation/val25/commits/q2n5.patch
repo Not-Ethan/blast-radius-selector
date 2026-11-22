@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -4343,7 +4343,7 @@
+             return self.sql(array_to_string)
+ 
+         if null:
+-            x = exp.to_identifier("x")
++            x = exp.to_identifier("x", copy=False)
+             return self.sql(
+                 exp.ArrayToString(
+                     this=exp.Transform(

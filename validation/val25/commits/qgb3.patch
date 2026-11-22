@@ -1,0 +1,13 @@
+diff --git a/sqlglot/parser.py b/sqlglot/parser.py
+index 0000000..1111111 100644
+--- a/sqlglot/parser.py
++++ b/sqlglot/parser.py
+@@ -2835,7 +2835,7 @@
+             if self._match_texts(self.CLONE_KEYWORDS):
+                 copy = self._prev.text.lower() == "copy"
+                 clone = self.expression(
+-                    exp.Clone(this=self._parse_table(schema=True), shallow=shallow, copy=copy)
++                    exp.Clone(this=self._parse_table(schema=True), shallow=shallow, copy=False)
+                 )
+ 
+         if self._curr and not self._match_set((TokenType.R_PAREN, TokenType.COMMA), advance=False):

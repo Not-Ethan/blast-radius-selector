@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/qualify_columns.py b/sqlglot/optimizer/qualify_columns.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/qualify_columns.py
++++ b/sqlglot/optimizer/qualify_columns.py
+@@ -608,7 +608,7 @@
+                                 raise OptimizeError(f"Ambiguous column: {col.name}")
+                             col.replace(
+                                 exp.func(
+-                                    "coalesce", *[exp.column(col.name, table) for table in tables]
++                                    "coalesce", *[exp.column(col.name, table, copy=False) for table in tables]
+                                 )
+                             )
+                         elif table := resolver.get_table(col):

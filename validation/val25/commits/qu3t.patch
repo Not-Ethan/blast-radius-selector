@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -3194,7 +3194,7 @@
+             result: exp.Expr = exp.Anonymous(this=func_name, expressions=[datetime_expr])
+             # EPOCH returns float, cast to BIGINT for integer result
+             if part_name == "EPOCH_SECOND":
+-                result = exp.cast(result, exp.DataType.from_str("BIGINT", dialect="duckdb"))
++                result = exp.cast(result, exp.DataType.from_str("BIGINT", dialect="duckdb"), copy=False)
+             return self.sql(result)
+ 
+         return super().extract_sql(expression)

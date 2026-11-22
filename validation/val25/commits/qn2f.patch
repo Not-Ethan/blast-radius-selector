@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -866,7 +866,7 @@
+     ):
+         self.unsupported("SEQ in restricted context is not supported - use CTE or subquery")
+ 
+-    result = _build_seq_expression(_SEQ_BASE.copy(), byte_width, signed=expression.name == "1")
++    result = _build_seq_expression(_SEQ_BASE, byte_width, signed=expression.name == "1")
+     return self.sql(result)
+ 
+ 

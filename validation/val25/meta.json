@@ -1,0 +1,443 @@
+{
+ "q2n5": {
+  "kind": "copy_false_added",
+  "tests_on_line": 2,
+  "desc": [
+   "sqlglot/generators/duckdb.py:4346 'x = exp.to_identifier(\"x\")' -> 'x = exp.to_identifier(\"x\", copy=False)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "q32u": {
+  "kind": "default_copy_false",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/expressions/dml.py:39 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "q3zf": {
+  "kind": "default_copy_false",
+  "tests_on_line": 191,
+  "desc": [
+   "sqlglot/expressions/core.py:2982 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "q4cb": {
+  "kind": "copy_false_added",
+  "tests_on_line": 2,
+  "desc": [
+   "sqlglot/transforms.py:106 'base_query = exp.select(start.as_(column_name))' -> 'base_query = exp.select(start.as_(column_name), copy=False)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "q4f7": {
+  "kind": "copy_false_added",
+  "tests_on_line": 2,
+  "desc": [
+   "sqlglot/transforms.py:674 'subquery = exp.select(\"1\").from_(join.this).where(on)' -> 'subquery = exp.select(\"1\", copy=False).from_(join.this).where(on)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "q585": {
+  "kind": "shared_expr_copy_removed",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/generators/duckdb.py:3667 'result = exp.replace_placeholders(self.MINHASH_TEMPLATE.copy(), expr=expr, k=k)' -> 'result = exp.replace_placeholders(self.MINHASH_TEMPLATE, expr=expr, k=k)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "q59t": {
+  "kind": "shared_expr_copy_removed",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/generators/duckdb.py:3677 'result = exp.replace_placeholders(self.APPROXIMATE_SIMILARITY_TEMPLATE.copy(), expr=expr)' -> 'result = exp.replace_placeholders(self.APPROXIMATE_SIMILARITY_TEMPLATE, expr=expr)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "q6r3": {
+  "kind": "copy_param_false",
+  "tests_on_line": 564,
+  "desc": [
+   "sqlglot/optimizer/optimizer.py:108 'optimized = exp.maybe_parse(expression, dialect=dialect, copy=copy)' -> 'optimized = exp.maybe_parse(expression, dialect=dialect, copy=False)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "q7jh": {
+  "kind": "default_copy_false",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/expressions/dml.py:123 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "q7x8": {
+  "kind": "copy_false_added",
+  "tests_on_line": 3,
+  "desc": [
+   "sqlglot/transforms.py:187 'select = select.replace(exp.alias_(select, alias, quoted=quoted))' -> 'select = select.replace(exp.alias_(select, alias, quoted=quoted, copy=False))'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "q9ba": {
+  "kind": "copy_false_added",
+  "tests_on_line": 2,
+  "desc": [
+   "sqlglot/optimizer/qualify_columns.py:611 '\"coalesce\", *[exp.column(col.name, table) for table in tables]' -> '\"coalesce\", *[exp.column(col.name, table, copy=False) for table in tables]'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "q9in": {
+  "kind": "default_copy_false",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/expressions/dml.py:388 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qbst": {
+  "kind": "default_copy_false",
+  "tests_on_line": 5640,
+  "desc": [
+   "sqlglot/generator.py:1011 'def generate(self, expression: exp.Expr, copy: bool = True) -> str:' -> 'def generate(self, expression: exp.Expr, copy: bool = False) -> str:'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qcst": {
+  "kind": "copy_param_false",
+  "tests_on_line": 28,
+  "desc": [
+   "sqlglot/generators/athena.py:184 'return self._trino_generator.generate(expression, copy=copy)' -> 'return self._trino_generator.generate(expression, copy=False)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qcvy": {
+  "kind": "shared_container_copy_removed",
+  "tests_on_line": 5641,
+  "desc": [
+   "sqlglot/generator.py:77 'dispatch: dict[type[exp.Expr], t.Callable[..., str]] = dict(cls.TRANSFORMS)' -> 'dispatch: dict[type[exp.Expr], t.Callable[..., str]] = cls.TRANSFORMS'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qdqf": {
+  "kind": "shared_expr_copy_removed",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/generators/duckdb.py:5128 'self.UUID_V5_TEMPLATE.copy(),' -> 'self.UUID_V5_TEMPLATE,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qevw": {
+  "kind": "shared_container_copy_removed",
+  "tests_on_line": 6072,
+  "desc": [
+   "sqlglot/tokens.py:107 'cls._BYTE_STRING_ESCAPES = set(cls.BYTE_STRING_ESCAPES)' -> 'cls._BYTE_STRING_ESCAPES = cls.BYTE_STRING_ESCAPES'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qg2d": {
+  "kind": "default_copy_false",
+  "tests_on_line": 257,
+  "desc": [
+   "sqlglot/expressions/core.py:3039 'def paren(expression: ExpOrStr, copy: bool = True) -> Paren:' -> 'def paren(expression: ExpOrStr, copy: bool = False) -> Paren:'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qgb3": {
+  "kind": "copy_param_false",
+  "tests_on_line": 4,
+  "desc": [
+   "sqlglot/parser.py:2838 'exp.Clone(this=self._parse_table(schema=True), shallow=shallow, copy=copy)' -> 'exp.Clone(this=self._parse_table(schema=True), shallow=shallow, copy=False)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qitx": {
+  "kind": "copy_param_false",
+  "tests_on_line": 4,
+  "desc": [
+   "sqlglot/generators/athena.py:182 'return self._hive_generator.generate(expression, copy=copy)' -> 'return self._hive_generator.generate(expression, copy=False)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qjgt": {
+  "kind": "copy_false_added",
+  "tests_on_line": 12,
+  "desc": [
+   "sqlglot/optimizer/merge_subqueries.py:624 'table.set(\"this\", exp.to_identifier(new_subquery.alias_or_name))' -> 'table.set(\"this\", exp.to_identifier(new_subquery.alias_or_name, copy=False))'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qjrh": {
+  "kind": "default_copy_false",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/expressions/dml.py:89 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qjza": {
+  "kind": "default_copy_false",
+  "tests_on_line": 3,
+  "desc": [
+   "sqlglot/expressions/query.py:2303 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qkgr": {
+  "kind": "shared_expr_copy_removed",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/generators/duckdb.py:3672 'result = exp.replace_placeholders(self.MINHASH_COMBINE_TEMPLATE.copy(), expr=expr)' -> 'result = exp.replace_placeholders(self.MINHASH_COMBINE_TEMPLATE, expr=expr)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qm9q": {
+  "kind": "copy_param_false",
+  "tests_on_line": 5626,
+  "desc": [
+   "sqlglot/dialects/dialect.py:1357 'return self.generator(**opts).generate(expression, copy=copy)' -> 'return self.generator(**opts).generate(expression, copy=False)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qmd1": {
+  "kind": "mutable_default",
+  "tests_on_line": null,
+  "desc": [
+   "AbstractMappingSchema.__init__: mapping default {} used directly (shared across instances)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qmd2": {
+  "kind": "mutable_default",
+  "tests_on_line": null,
+  "desc": [
+   "AbstractMappingSchema.__init__: udf_mapping default {} used directly"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qmd3": {
+  "kind": "mutable_default",
+  "tests_on_line": null,
+  "desc": [
+   "ParseError.__init__: errors default [] used directly"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qmd4": {
+  "kind": "mutable_default",
+  "tests_on_line": null,
+  "desc": [
+   "flatten_schema: keys default [] used directly"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qn2f": {
+  "kind": "shared_expr_copy_removed",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/generators/duckdb.py:869 'result = _build_seq_expression(_SEQ_BASE.copy(), byte_width, signed=expression.name == \"1\")' -> 'result = _build_seq_expression(_SEQ_BASE, byte_width, signed=expression.name == \"1\")'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qn9q": {
+  "kind": "copy_false_added",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/generators/tsql.py:566 'exp.column(\"TABLE_NAME\").eq(table.name),' -> 'exp.column(\"TABLE_NAME\").eq(table.name, copy=False),'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qnf5": {
+  "kind": "default_copy_false",
+  "tests_on_line": 95,
+  "desc": [
+   "sqlglot/expressions/query.py:1268 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qp6w": {
+  "kind": "shared_container_copy_removed",
+  "tests_on_line": 6072,
+  "desc": [
+   "sqlglot/tokens.py:105 'cls.BYTE_STRING_ESCAPES = cls.STRING_ESCAPES.copy()' -> 'cls.BYTE_STRING_ESCAPES = cls.STRING_ESCAPES'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qqty": {
+  "kind": "copy_false_added",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/generators/bigquery.py:165 'this=series, alias=exp.TableAlias(this=exp.to_identifier(column_name))' -> 'this=series, alias=exp.TableAlias(this=exp.to_identifier(column_name, copy=False))'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qrd3": {
+  "kind": "copy_false_added",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/generators/presto.py:262 'column.parent.replace(exp.column(column.parent.expression, table=new_table))' -> 'column.parent.replace(exp.column(column.parent.expression, table=new_table, copy=False))'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qrpb": {
+  "kind": "copy_false_added",
+  "tests_on_line": 480,
+  "desc": [
+   "sqlglot/parser.py:4458 'return select.from_(values if values.alias else exp.alias_(values, \"_values\", table=True))' -> 'return select.from_(values if values.alias else exp.alias_(values, \"_values\", table=True, copy=False))'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qs8x": {
+  "kind": "default_copy_false",
+  "tests_on_line": 13,
+  "desc": [
+   "sqlglot/expressions/query.py:60 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qt7x": {
+  "kind": "copy_false_added",
+  "tests_on_line": 138,
+  "desc": [
+   "sqlglot/parser.py:5756 'columns.append(exp.to_identifier(\"_\".join(fld_parts)))' -> 'columns.append(exp.to_identifier(\"_\".join(fld_parts), copy=False))'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qu3t": {
+  "kind": "copy_false_added",
+  "tests_on_line": 2,
+  "desc": [
+   "sqlglot/generators/duckdb.py:3197 'result = exp.cast(result, exp.DataType.from_str(\"BIGINT\", dialect=\"duckdb\"))' -> 'result = exp.cast(result, exp.DataType.from_str(\"BIGINT\", dialect=\"duckdb\"), copy=False)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qu3y": {
+  "kind": "default_copy_false",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/expressions/query.py:1352 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qu7z": {
+  "kind": "copy_false_added",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/generators/duckdb.py:3844 'index = exp.column(\"__i\") + 1' -> 'index = exp.column(\"__i\", copy=False) + 1'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qwmg": {
+  "kind": "shared_expr_copy_removed",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/generators/duckdb.py:702 'return exp.replace_placeholders(_SEQ_SIGNED.copy(), base=base, max_val=max_val, half=half)' -> 'return exp.replace_placeholders(_SEQ_SIGNED, base=base, max_val=max_val, half=half)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qwsj": {
+  "kind": "default_copy_false",
+  "tests_on_line": 5,
+  "desc": [
+   "sqlglot/expressions/query.py:193 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qxss": {
+  "kind": "shared_container_copy_removed",
+  "tests_on_line": 6072,
+  "desc": [
+   "sqlglot/tokens.py:108 'cls._IDENTIFIER_ESCAPES = set(cls.IDENTIFIER_ESCAPES)' -> 'cls._IDENTIFIER_ESCAPES = cls.IDENTIFIER_ESCAPES'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qy5a": {
+  "kind": "shared_container_copy_removed",
+  "tests_on_line": 6072,
+  "desc": [
+   "sqlglot/tokens.py:106 'cls._STRING_ESCAPES = set(cls.STRING_ESCAPES)' -> 'cls._STRING_ESCAPES = cls.STRING_ESCAPES'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qy7k": {
+  "kind": "copy_false_added",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/parsers/prql.py:120 'return query.limit(num) if num else None' -> 'return query.limit(num, copy=False) if num else None'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qynx": {
+  "kind": "default_copy_false",
+  "tests_on_line": 920,
+  "desc": [
+   "sqlglot/expressions/query.py:132 'def subquery(self, alias: ExpOrStr | None = None, copy: bool = True) -> Subquery:' -> 'def subquery(self, alias: ExpOrStr | None = None, copy: bool = False) -> Subquery:'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qz3a": {
+  "kind": "shared_container_copy_removed",
+  "tests_on_line": 1,
+  "desc": [
+   "sqlglot/dialects/dialect.py:1142 'all_dialects = set(DIALECT_MODULE_NAMES) | set(cls._classes.keys())' -> 'all_dialects = DIALECT_MODULE_NAMES | set(cls._classes.keys())'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ },
+ "qzpw": {
+  "kind": "default_copy_false",
+  "tests_on_line": 232,
+  "desc": [
+   "sqlglot/expressions/query.py:272 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "copy/aliasing edits where a leak is most plausible (shared containers, templates, copy flags/defaults, copy=False added, mutable defaults)"
+ }
+}

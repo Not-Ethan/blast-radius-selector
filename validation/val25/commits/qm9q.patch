@@ -1,0 +1,13 @@
+diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py
+index 0000000..1111111 100644
+--- a/sqlglot/dialects/dialect.py
++++ b/sqlglot/dialects/dialect.py
+@@ -1354,7 +1354,7 @@
+     def generate(
+         self, expression: exp.Expr, copy: bool = True, **opts: Unpack[GeneratorArgs]
+     ) -> str:
+-        return self.generator(**opts).generate(expression, copy=copy)
++        return self.generator(**opts).generate(expression, copy=False)
+ 
+     def transpile(self, sql: str, **opts: Unpack[GeneratorArgs]) -> list[str]:
+         return [

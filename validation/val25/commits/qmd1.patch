@@ -1,0 +1,17 @@
+diff --git a/sqlglot/schema.py b/sqlglot/schema.py
+index 0000000..1111111 100644
+--- a/sqlglot/schema.py
++++ b/sqlglot/schema.py
+@@ -150,10 +150,10 @@
+ class AbstractMappingSchema:
+     def __init__(
+         self,
+-        mapping: dict[str, object] | None = None,
++        mapping: dict[str, object] | None = {},
+         udf_mapping: dict[str, object] | None = None,
+     ) -> None:
+-        self.mapping: dict[str, object] = mapping or {}
++        self.mapping: dict[str, object] = mapping
+         self.mapping_trie: dict[str, object] = new_trie(
+             tuple(reversed(t)) for t in flatten_schema(self.mapping, depth=self.depth())
+         )

@@ -1,0 +1,13 @@
+diff --git a/sqlglot/transforms.py b/sqlglot/transforms.py
+index 0000000..1111111 100644
+--- a/sqlglot/transforms.py
++++ b/sqlglot/transforms.py
+@@ -103,7 +103,7 @@
+ 
+             cte_name = "_generated_dates" + (f"_{count}" if count else "")
+ 
+-            base_query = exp.select(start.as_(column_name))
++            base_query = exp.select(start.as_(column_name), copy=False)
+             recursive_query = (
+                 exp.select(cast_date_add)
+                 .from_(cte_name)

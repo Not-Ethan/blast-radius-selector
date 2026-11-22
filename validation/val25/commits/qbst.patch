@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generator.py b/sqlglot/generator.py
+index 0000000..1111111 100644
+--- a/sqlglot/generator.py
++++ b/sqlglot/generator.py
+@@ -1008,7 +1008,7 @@
+             _DISPATCH_CACHE[cls] = dispatch
+         self._dispatch = dispatch
+ 
+-    def generate(self, expression: exp.Expr, copy: bool = True) -> str:
++    def generate(self, expression: exp.Expr, copy: bool = False) -> str:
+         """
+         Generates the SQL string corresponding to the given syntax tree.
+ 

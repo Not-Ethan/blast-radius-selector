@@ -345,7 +345,7 @@ def case_full_costs(maps, node):
 # commit simply includes every test.
 LEAK_CHECK_CPU = float(os.environ.get("BR_LEAK_CHECK_CPU", "1.2"))
 LEAK_MAX_CPU = float(os.environ.get("BR_LEAK_MAX_CPU", "20.0"))
-LEAK_COPY_MAX_CPU = float(os.environ.get("BR_LEAK_COPY_MAX_CPU", "3.0"))  # local s: state check for copy-only edits
+LEAK_COPY_MAX_CPU = float(os.environ.get("BR_LEAK_COPY_MAX_CPU", "0"))  # local s: state check for copy-only edits (0: never)
 LEAK_RESTRICT = os.environ.get("BR_LEAK_RESTRICT", "1") == "1"  # fixture-loop tests on the cases that reach the edit
 STATE_CHECK_CPU = float(os.environ.get("BR_STATE_CHECK_CPU", "0.65"))  # local CPU s of one comparison (0.60-0.70 measured)
 # Scorer CPU per local CPU second for this work: practice M13 -> M17 cost +9.4 s of
@@ -583,10 +583,12 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
         too_costly = costly or cpu > LEAK_MAX_CPU or cpu + 0.5 * run_cost >= everything_cost
         if not getattr(found, "leak_write", False) and (too_costly or cpu > LEAK_COPY_MAX_CPU):
             # Copying changed and nothing else: an alias can only leak through an object
-            # that outlives a test reaching the changed code, which none of 63 labelled
-            # copy edits did (a later candidate of the same function sees it and is
-            # selected or verified with it). Such a check is run only while it is cheap;
-            # otherwise the commit is planned as any other.
+            # that outlives a test reaching the changed code; none of 112 labelled copy
+            # edits (val17, val19, val25; full-suite labels) left a failing test outside
+            # the plain selection (where victims exist they are candidates of the same
+            # function, selected or verified with it), while each check costs about 2-5 s
+            # of scorer CPU. By default no check (BR_LEAK_COPY_MAX_CPU > 0 runs it while
+            # its local CPU stays under that); the commit is planned as any other.
             leak_skip = f"copy-only edit ({found.leak_check}): state check skipped ({cpu:.1f}s)"
         elif too_costly:
             plan.include = set(plan.everything)

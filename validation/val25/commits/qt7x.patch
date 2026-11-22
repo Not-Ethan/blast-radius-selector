@@ -1,0 +1,13 @@
+diff --git a/sqlglot/parser.py b/sqlglot/parser.py
+index 0000000..1111111 100644
+--- a/sqlglot/parser.py
++++ b/sqlglot/parser.py
+@@ -5753,7 +5753,7 @@
+                         # Move the "name" to the front of the list
+                         fld_parts.insert(0, fld_parts.pop(-1))
+ 
+-                    columns.append(exp.to_identifier("_".join(fld_parts)))
++                    columns.append(exp.to_identifier("_".join(fld_parts), copy=False))
+ 
+             pivot.set("columns", columns)
+             pivot.set("identify_pivot_strings", self.IDENTIFY_PIVOT_STRINGS)

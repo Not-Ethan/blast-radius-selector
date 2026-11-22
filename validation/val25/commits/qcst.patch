@@ -1,0 +1,10 @@
+diff --git a/sqlglot/generators/athena.py b/sqlglot/generators/athena.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/athena.py
++++ b/sqlglot/generators/athena.py
+@@ -181,4 +181,4 @@
+         if _generate_as_hive(expression):
+             return self._hive_generator.generate(expression, copy=copy)
+ 
+-        return self._trino_generator.generate(expression, copy=copy)
++        return self._trino_generator.generate(expression, copy=False)

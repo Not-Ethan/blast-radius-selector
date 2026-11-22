@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/merge_subqueries.py b/sqlglot/optimizer/merge_subqueries.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/merge_subqueries.py
++++ b/sqlglot/optimizer/merge_subqueries.py
+@@ -621,7 +621,7 @@
+         tables = join_hint.find_all(exp.Table)
+         for table in tables:
+             if table.alias_or_name == node_to_replace.alias_or_name:
+-                table.set("this", exp.to_identifier(new_subquery.alias_or_name))
++                table.set("this", exp.to_identifier(new_subquery.alias_or_name, copy=False))
+     outer_scope.remove_source(alias)
+     outer_scope.add_source(
+         new_subquery.alias_or_name, inner_scope.sources[new_subquery.alias_or_name]

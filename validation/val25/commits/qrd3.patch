@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/presto.py b/sqlglot/generators/presto.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/presto.py
++++ b/sqlglot/generators/presto.py
+@@ -259,7 +259,7 @@
+                 elif column.table.lower() == old_table:
+                     column.set("table", new_table.copy())
+                 elif column.name.lower() == old_table and isinstance(column.parent, exp.Dot):
+-                    column.parent.replace(exp.column(column.parent.expression, table=new_table))
++                    column.parent.replace(exp.column(column.parent.expression, table=new_table, copy=False))
+ 
+     return expression
+ 
