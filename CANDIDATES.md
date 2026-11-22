@@ -1,16 +1,23 @@
 
 # Candidate submissions (branch br-opt)
 
-> **Final entry if the cutoff were now: M23 (071cab9)** — published (public e88ad91),
-> practice **151.6 s (132.679 simulated + 18.86-18.92 CPU), 0 missed**: our best score and
-> sound under the per-test (isolated) reading of the rules. Against M22 (140.205 + 20.1-22.2)
-> the container-order fix (build-time pinned fingerprints with shifted memory layouts) bought
-> 7.5 s simulated and 1.3 s CPU: the state comparisons now narrow on the scorer instead of
-> falling back. Board then: 1st 114.6, 10th 128.3, 20th 137.7, 30th 143.2; we are 41st of 344.
-> **Known miss class in M23 (and every earlier candidate): state leaking between tests in
-> one pytest process** (see "State leak" below); a fix (M24) is in validation.
+> **Final entry if the cutoff were now: M24 (ffad41e)** — not yet scored, but it fixes two
+> real miss classes present in M23 (see the M24 section): the state fingerprints could not see
+> sqlglot expressions (UnixToTime.MILLIS 3 -> 30: 2 failing tests, M17-M23 select none), and a
+> renamed module-level class was narrowed by name mentions (kinds3 k833: 1 of 127 left out).
+> Every set: 0 misses; simulated equal to M23 everywhere except val1 +4.5 (a moved
+> `__firstlineno__` makes one comparison fall back). Docker check on the exact tree (`git
+> archive ffad41e:blast-radius`, `--no-cache`, amd64): valid, 0 misses, simulated 121.616 s
+> (as M23's emulated check; the light-probe second round of 66ks was killed by emulation
+> slowness), the state comparison narrowed gbav in the container. From-scratch build 2290 s
+> locally under very heavy load (emulated; M24's first image 1797 s; M22 195 s on a quiet machine).
+> Expect M23's CPU. If no real score arrives, M23 (151.6 s, 0 missed) is the scored fallback
+> but carries both miss classes.
 >
-> **Recommended next: none yet** (M24, the state-leak fix, is being validated).
+> **Recommended next: M24 (ffad41e).** M25 (state-leak guard, on top of M24) is in validation.
+>
+> Previous final entry: M23 (071cab9, public e88ad91), practice 151.6 s (132.679 simulated +
+> 18.86-18.92 CPU), 0 missed; 41st of 344 at the time (1st 114.6, 10th 128.3, 30th 143.2).
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
@@ -853,3 +860,81 @@ A labelled kinds2 commit (bipi, trailing whitespace) showed test_execute_tpcds f
 which no selection includes. Rerun with real pytest on the patched tree: it passes
 (57 subtests). The label is false: I had paused the labeller with SIGSTOP while it ran
 that test. Not a miss; bipi will be relabelled, and the labeller is no longer paused.
+
+## State leak between tests: findings (after M23)
+
+Question: our function-edit rule ("a test that never runs a changed line cannot change
+its result") holds for a test run alone. Does the organisers' labelling run tests alone?
+
+* **(a) Labels.** One full-suite pytest process per commit (files in tests.json order,
+  pytest 9, pytest-timeout, SKIP_INTEGRATION=0; `tools/label_pytest.py --all`)
+  reproduces the kit sample's answers **exactly: 30 of 30 commits** (`.work/labels/sample_all`).
+  Running each of the 73 failing tests of those commits alone in its own pytest process
+  also fails all 73, so the sample cannot tell the two regimes apart (no sample commit has
+  a test that fails only after another test ran). Not checked: whether any test fails
+  alone but passes in the full suite (would need 1620 isolated runs per commit). The kit's
+  wording (pytest reports, PASSED beside SUBFAILED, the file cannot be imported) describes
+  an ordinary pytest run; pytest-xdist is in requirements.lock, so `-n` is possible, in
+  which case leaks still happen inside each worker. We should assume a shared process.
+* **(b) Our labeller** runs one pytest process per commit but only on a subset (tests
+  that entered the edited functions, or importers, plus 30 random spot checks), so a
+  victim that never runs the edit is seen only if spot-checked. `--all` (whole suite, one
+  process) was used for every set below.
+* **(c) Leak mutants, one full-suite process each:** `leaks` = 40 copy/alias removals
+  (`tools/gen_leaks.py`, 70% on module/class-level objects); `leakctl` = 4 hand-written
+  run-time writes to shared state; `leaks2` = 24 copy edits on lines at least 20 tests run
+  (`tools/gen_leaks2.py`: copy defaults/flags flipped, `copy` negated, copies and
+  copy statements removed). M22/M23 on `leaks`: **0 missed of 40** (where victims exist
+  they are themselves candidates: lyd3 has 146 failing tests, 12 of 15 sampled pass alone,
+  all inside the 1347 blind candidates). `leakctl` c004, `type(self).LIMIT_FETCH = "FETCH"`
+  inserted in duckdb `_last_day_sql`: 10 tests fail in the suite, **each passes alone,
+  M22/M23 select none: a real miss class.** c002 (`MAX_BIT_POSITION.set("this", "7")`):
+  its one victim (test_snowflake::test_snowflake) passes alone and was caught only because
+  verification happened to run it after the leaking candidate in the same child.
+* **(d) Verification is exposed.** It runs a commit's verified tests in one forked child
+  in tests.json order (unrestricted group, then case-restricted, then stage checks), so a
+  leak between candidates is reproduced only if the leaking test also runs, earlier, in
+  that child; blind-included candidates (top-k plans), case-restricted runs, stage checks
+  and light probes break that. No observed miss from this path, but nothing prevents one.
+
+## M24 — two soundness fixes found while testing the state-leak question (includes M23)
+
+Commits **664e5c9, b42590b, ffad41e** (candidate = ffad41e). Not a state-leak fix (that is
+M25); two real misses in M23 (and in M17-M23 for the first) found on the way:
+
+* **State fingerprints were blind to sqlglot expressions.** `keyrec.fp` read an object's
+  `__dict__`; expressions keep their content in `__slots__` next to an empty `__dict__`, so
+  every expression of a class fingerprinted the same. The state comparison (key, module and
+  class-attribute records, M15-M23) then saw no change when a class-level or dict-held
+  expression changed. Probe set `slots` (5 edits of class-level expression constants,
+  full-suite labels): s001 `UnixToTime.MILLIS = Literal.number(3)` -> `30` fails
+  test_duckdb::test_time and test_snowflake::test_snowflake (both also fail alone); **M23
+  selects nothing ("state: nothing else changed")**. Fixed: expressions are walked without
+  recursion (class, args in order, comments, type, meta; not the parent link or the hash
+  cache), other objects with both `__dict__` and slots read both, enum members include
+  their value. Same 53 seed-dependent values, 0 unreadable holders, same cost.
+  Also: a dunder/sunder class attribute change (an Enum's `_value2member_map_`, read by
+  `DType("INT")`-style lookups that never name it) keeps the wider masks.
+* **Class headers of module-level classes were narrowed by name mentions.** A class's
+  name feeds keys computed at import time: renaming `class Athena` changes the dialect
+  registry key, and test_anonymize::test_athena_known_function_kept (dialect "athena", no
+  mention of the name) fails; **M23 left it out** (kinds3 k833, 1 of 127). Renamed classes
+  now keep every test that executed the class statement; other header edits keep every user
+  of the class (instances, methods, reads through its name), as class-scope headers did.
+
+| set | M22/M23 sim | M24 sim | misses (M23 -> M24) |
+| --- | ---: | ---: | --- |
+| kit sample (30) | 96.8 | 96.8 | 0 -> 0 |
+| val6 / val9 (official-style) | 193.2 / 235.1 | 193.2 / 235.1 | 0 -> 0 |
+| slots (5, new) | 307.8 | 10.5 | **1 -> 0** |
+| kinds3 (37 new kinds, full-suite labels) | 973.9 | 673.9 | **1 -> 0** |
+| kinds2 (47 new kinds) | 656.7 | 656.7 | 0 -> 0 |
+| leaks (40) | 251.4 | 251.4 | 0 -> 0 |
+| val1 | 1073.2 | 1077.7 | 0 -> 0 (d9ch: a class's `__firstlineno__` moved, comparison fell back; exempted in M25) |
+| val2, val3, val4, val5, val7, val8 | 532.8, 287.5, 79.3, 176.4, 47.5, 166.3 | same | 0 |
+| val10-val16 | 362.6, 138.7, 138.7, 110.5, 46.5, 169.9, 546.7 | 362.2, same, ..., 546.7 | 0 |
+| leakctl (4) | c004 missed | c004 missed | M25 |
+
+Docker check on the exact tree (ffad41e): valid, 0 misses, simulated 121.616 s emulated,
+build 2290 s under heavy load (see the top).
+
