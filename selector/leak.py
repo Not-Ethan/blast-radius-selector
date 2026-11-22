@@ -17,9 +17,11 @@ classify() sorts an edit of a .py file:
   helper that sets and pops a parser-table entry). Every test is included.
 * soft: the edit introduces such a write (also through `self.<name>` when some class
   in the file binds <name> in its body), changes `global`/`nonlocal` declarations, adds a
-  mutable default or touches a caching decorator; or it only changes copying or aliasing
-  (fewer copies: a copy flag or default flipped towards no copy, `copy` negated, a copy
-  call or statement removed, a container copy or an in-place operator added or removed). The
+  mutable default, touches a caching decorator or changes a call to one of the writers
+  sqlglot calls explicitly (`_try_load`, `_parse_connect_with_prior`); or it only changes
+  copying or aliasing (fewer copies: a copy flag or default flipped towards no copy, `copy`
+  negated, a copy call or statement removed, a container copy or an in-place operator
+  added or removed, an UPPERCASE class- or module-level object newly passed to a call). The
   commit is narrowed as usual, then every candidate runs in one verification child
   (fixture loops on the cases that reach the edit), and the state of every sqlglot class and module (and every loaded test
   module) is fingerprinted before and after the run (state_leaks). Any change the
@@ -154,6 +156,34 @@ class _Func:
             return False
         return self.reachable is None or node.id in self.reachable
 
+    def _constant_like(self, node) -> bool:
+        """A class- or module-level object by naming convention (tables, templates,
+        constants: UPPERCASE), reached through a bare name or an attribute chain."""
+        if isinstance(node, ast.Name):
+            return node.id.isupper() and node.id not in self.locals and len(node.id) > 1
+        if isinstance(node, ast.Attribute):
+            return node.attr.isupper() and len(node.attr) > 1 and self.shared(node)
+        return False
+
+    def shared_args(self, lines) -> set:
+        """(callee, argument) pairs for calls on `lines` that pass such an object."""
+        out = set()
+        for n in _walk_own(self.func):
+            if isinstance(n, ast.Call) and getattr(n, "lineno", None) in lines:
+                callee = n.func.attr if isinstance(n.func, ast.Attribute) else getattr(n.func, "id", "?")
+                for a in list(n.args) + [k.value for k in n.keywords]:
+                    if self._constant_like(a):
+                        out.add(f"{callee}({ast.unparse(a)})")
+        return out
+
+    def calls_writer(self, lines) -> bool:
+        for n in _walk_own(self.func):
+            if isinstance(n, ast.Call) and getattr(n, "lineno", None) in lines:
+                callee = n.func.attr if isinstance(n.func, ast.Attribute) else getattr(n.func, "id", "")
+                if callee in WRITER_CALLS:
+                    return True
+        return False
+
     def mutates_shared(self) -> bool:
         for n in _walk_own(self.func):
             if isinstance(n, (ast.Assign, ast.AugAssign, ast.AnnAssign, ast.Delete)):
@@ -238,6 +268,10 @@ COPY_TOKEN = re.compile(r"\bnot\s+copy\b|\bcopy\s*(?::\s*bool\s*)?=\s*(?:True|Fa
                         r"|\[:\]|\bcopy\b")
 MORE_COPYING = {("copy=False", "copy=True"), ("copy:False", "copy:True")}
 COPY_ONLY = "copying only: "  # prefix of soft reasons that involve no write to shared state
+# Writers (functions whose body writes state that outlives a test) that sqlglot calls
+# explicitly; the other writers run implicitly (__init_subclass__, metaclass __new__,
+# module __getattr__, Generator.__init__ caching a dispatch keyed by class).
+WRITER_CALLS = {"_try_load", "_parse_connect_with_prior"}
 
 
 def _copy_tokens(lines):
@@ -325,14 +359,20 @@ def classify(old_text: str | None, new_text: str | None, removed_text: list[str]
             except SyntaxError:
                 continue
     trees = {k: v for k, v in trees.items() if v is not None}
+    passed = {"old": set(), "new": set()}
+    writer_call = False
     if "old" in trees and changed_old:
         CLASS_LEVEL[0] = _class_level_names(trees["old"])
         for f in _changed_functions(trees["old"], changed_old, _module_names(trees["old"])):
             if f.mutates_shared():
                 return f"{f.func.name} (line {f.func.lineno}) writes to an object that outlives a test", None
+            passed["old"] |= f.shared_args(changed_old)
+            writer_call = writer_call or f.calls_writer(changed_old)
     if "new" in trees and changed_new:
         CLASS_LEVEL[0] = _class_level_names(trees["new"])
         for f in _changed_functions(trees["new"], changed_new, _module_names(trees["new"])):
+            passed["new"] |= f.shared_args(changed_new)
+            writer_call = writer_call or f.calls_writer(changed_new)
             if f.mutates_shared():
                 soft = soft or f"{f.func.name} (new line {f.func.lineno}) now writes to an object that outlives a test"
             if _mutable_default(f.func):
@@ -343,6 +383,8 @@ def classify(old_text: str | None, new_text: str | None, removed_text: list[str]
         soft = soft or "global/nonlocal declarations changed"
     if any("cache" in x for x in removed + added if x.lstrip().startswith("@")):
         soft = soft or "a caching decorator changed"
+    if writer_call:
+        soft = soft or "a call to a function that writes shared state changed"
     if soft:
         return None, soft
     # Copying/aliasing changes only (no write to shared state in sight): marked so the
@@ -352,6 +394,8 @@ def classify(old_text: str | None, new_text: str | None, removed_text: list[str]
         why = "a container copy added or removed"
     if not why and sum(len(AUGMENTED.findall(x)) for x in removed) != sum(len(AUGMENTED.findall(x)) for x in added):
         why = "an in-place operator added or removed"
+    if not why and passed["new"] - passed["old"]:
+        why = "a class- or module-level object newly passed to a call: " + ", ".join(sorted(passed["new"] - passed["old"]))[:120]
     if why:
         soft = COPY_ONLY + why
     return None, soft
