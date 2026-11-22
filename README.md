@@ -10,6 +10,29 @@ The idea in one line: **compute a sound superset of the tests a patch can reach 
 per-test coverage of the pinned commit, then, when it pays, actually run the cheap
 ones against the patched tree and keep only the ones that fail.**
 
+## What is computed when (at a glance)
+
+* **Before submission, from the pinned commit only** (plain files in `maps/`, regenerated
+  by the commands under "Maps"): each test run alone at the pinned commit and traced -
+  lines and functions it executes, files it opens, classes it instantiates, the runtime
+  class behind `self.X` reads, the dict keys and module attributes it reads, the CPU it
+  costs; per-case traces of the fixture-loop tests; the class hierarchy. Nothing here
+  depends on any patch.
+* **While the image is built** (`Dockerfile`): the labeller's packages from PyPI, sqlglot's
+  own repository at the pinned commit, bytecode, and one fingerprint of the pinned
+  program state (every sqlglot class attribute and module global) used to see what a
+  patch changes at import time.
+* **Per patch, at decision time**: parse the patch, apply it in memory, compare old and
+  new syntax trees, turn every change into the tests that can reach it using the maps
+  above, and, when cheaper than including them, run those tests against the patched
+  tree (an overlay in `/tmp`) and keep the ones that fail. Then pack them onto workers.
+* **Never**: there is no table from a patch, a kind of edit, a file or a line to tests
+  that break. No labels, answers or validation data are in the image (`.dockerignore`
+  keeps `tools/` and `validation/` out). The few probabilities in the planner only decide
+  whether a candidate is included outright or run first; a test leaves a selection only
+  because the pinned-commit maps show it cannot reach the change, or because it ran on
+  the patched tree and passed (or on the infection-probe evidence described below).
+
 ## How it decides
 
 1. **Parse and apply the patch in memory** (`selector/patch.py`). New, deleted,
@@ -252,6 +275,15 @@ than over-selection.
   CPU each test costs our verifier. Plus one pseudo-test per case of the TPC-H/TPC-DS
   loop tests (`tools/trace_cases.py`, `tools/augment_maps.py`) with the CPU of a run
   restricted to that case.
+  The same file holds the other per-test records, all traced at the pinned commit with
+  each test alone: the runtime class behind `self.NAME` / `cls.NAME` / `self.dialect.NAME`
+  reads (`tools/trace_typed.py`), which tokenizer-core lines ran for which tokenizer class
+  (`tools/trace_tokcore.py`), the keys each test looked up in sqlglot's dicts
+  (`tools/trace_keys.py`), the attributes it read through sqlglot module objects
+  (`tools/trace_modattrs.py`) and the optimizer-stage fingerprints of the TPC-DS cases
+  (`tools/trace_stage.py`).
+* `pinned_state.json.gz` (written while the image is built, not committed): the
+  fingerprint of every sqlglot class attribute and module global at the pinned commit.
 * `cases.json`: which tests loop over which fixture, the number of cases per fixture,
   and fixtures a test's class loads but the test never uses (`tools/build_cases.py`).
 * `classinfo.json.gz`: sqlglot class hierarchy, dialect families, class spans, the
@@ -302,11 +334,15 @@ Linux came out identical.
 
 ## Validation (`tools/`, not used at decision time)
 
+* `gen_leaks.py`, `gen_leaks2.py`, `gen_leaks3.py`, `gen_kinds2.py`: copy/aliasing edits
+  where a leak between tests is plausible, and kinds not seen in practice.
 * `gen_mutants.py` generates patches of many kinds (operator/constant/boolean edits in
   function and class bodies, deleted statements, comments in code and fixtures, fixture
   edits, test edits, docstrings, syntax errors, new and deleted files, multi-file mixes).
 * `label_pytest.py` labels them with real pytest (real spawn process pools, pytest 9
-  subtests, pytest-timeout with a 1500 s limit) on the patched tree. What it runs does
+  subtests, pytest-timeout with a 1500 s limit) on the patched tree. `--all` runs the
+  whole suite in one process per patch (the files of tests.json in order), `--all --dir`
+  collects the tests directory as `pytest tests` does. Without them, what it runs does
   not depend on the selector's narrowing: every test that entered an edited function
   (edits strictly inside function bodies), every importer or reader of the file
   (any other .py edit), every reader of a data file, everything for added, removed or
@@ -319,25 +355,25 @@ Linux came out identical.
   this harness: `.dockerignore` keeps them (and `tools/`) out of the image, and the
   selector never reads them.
 
-## Results (local)
+## Results
 
-Measured with the kit's `score.py` (simulated seconds are exact; CPU is not part of
-those numbers):
+Practice board (the organisers' practice batch, about 40 commits): 149.7 s = 132.679 s
+simulated + 17.0-17.9 s CPU, 0 commits missed (no practice submission of this entry ever
+missed a commit). Local, with the kit's `score.py` (simulated seconds are exact):
 
 | set | commits | simulated | oracle* | misses |
 | --- | ---: | ---: | ---: | ---: |
-| kit sample | 30 | 109.5 s | 94.4 s | 0 |
-| generated mix, size-weighted files (`validation/val1`) | 126 | 344.5 s | 208.6 s | 0 |
-| generated mix, uniform file choice (`validation/val2`, labeled part) | 68 | 352.2 s | 169.7 s | 0 |
-| `is`/`==` and `<`/`<=` swaps, half reaching TPC-DS (`validation/val4`) | 36 | 205.9 s | 12.4 s | 0 |
+| kit sample | 30 | 96.8 s | 94.4 s | 0 |
+| official-style mutations (`validation/val6`, `val9`) | 60 + 60 | 193.2 s, 235.1 s | 170.2 s, 160.9 s | 0 |
+| generated mix, uniform file choice (`validation/val2`) | 120 | 532.8 s | 401.8 s | 0 |
+| all 27 validation sets (1,031 labelled commits) plus the kit sample | | | | 0 |
 
 \* oracle = cost of packing exactly the failing tests, the floor for any selector.
 
-CPU on a heavily loaded Apple M1 host was about 0.5 s per commit on the sample and
-val1 (more on val4, which is built to trigger probes); the scoring machine's number is
-not known locally (amd64 emulation is far too slow to measure). Labels come from
-`tools/ground_truth.py` (candidates plus random spot checks among other importers; no
-spot check ever failed outside the candidate set).
+Labels come from real pytest runs on the patched tree. For the leak, new-kind and
+plumbing sets (`val17`-`val27`) every label is one full-suite pytest process (as the
+organisers' run must be: it reproduces all 30 kit-sample answers), and `val26`/`val27`
+collect the tests directory like `pytest tests`, so new test files are imported too.
 
 ## Known risks
 

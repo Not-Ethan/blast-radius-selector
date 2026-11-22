@@ -9,21 +9,16 @@
 > 0 failing tests out. With val17 and val19: 112 labelled copy edits, none leaving a failing
 > test outside the plain (unguarded) selection.
 >
-> **Final entry if the cutoff were now: M31 (1899098)** — practice **150.9 s (132.679 +
-> 18.17-18.39 CPU), 0 missed**: our best score, sound. Scored fallbacks: M27/M29 155.6, M25 161.1.
+> **Final entry if the cutoff were now: M33 (5adb666)** — practice **149.7 s (132.679 +
+> 16.95-17.91 CPU), 0 missed**: our best score, sound. Scored fallbacks: M31 150.9, M27/M29 155.6.
 >
-> **Recommended next: M33 (5adb666)** = M31 + M30's new-test-module rule (already in M31) +
-> a CPU-only change: the executor tests' class fixture (every TPC-H and TPC-DS table parsed
-> into Python rows, about 1.4 s local) skips the rows no test of the verification run reads
-> (only `test_execute_tpch` / `test_execute_tpcds` run in full read them; stage checks stop
-> after optimize()). Same selections on every set (val1-val27, kit sample; 13 stage-check
-> commits: identical differing cases). Local CPU, interleaved: kit sample 9.8-10.2 ->
-> 8.3-8.5 s, val6 22.3 -> 19.6 s, val9 unchanged. Expected on practice: 132.7 simulated at
-> about 2-3 s less CPU (about 148-149 s). Docker check on the exact tree: kit sample valid,
-> 0 misses, 96.839 s, 82 s wall (M31: 99 s), build 308 s; 13 stage-check commits valid, 0
-> misses (the checks that finished under emulation found the same differing cases as
-> native; the others ran out of emulated time and fell back to including the test); 7
-> flagged commits valid, 0 misses.
+> **Recommended next: M34 (1222b42)** = M33 + final-run robustness, same selections:
+> a verification child stuck off-CPU (a test that sleeps at import) is stopped after
+> 2 x budget + 15 s instead of 3 x budget + 60 s, and identical selections are packed once
+> in the output step. Kit sample output byte-identical to M33's; val6 identical. On a
+> 63-commit nasty batch (see "Final-run robustness" below) the emulated container finishes
+> in 197 s (M33: 234 s) against the final's 270 s; natively 100 s (M33: 161 s). Docker check
+> on the exact tree: kit sample valid, 0 misses, 96.839 s, 84 s wall, build 438 s.
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
@@ -1259,3 +1254,37 @@ answers.
 ## M33 — executor fixture skips table rows no test of the run reads (recommended next)
 
 Commit **5adb666** (on M31). See the top lines. `BR_STAGE_LIGHT_FIXTURE=0` turns it off.
+
+## Final-run robustness (M34)
+
+Nasty batch `.work/mk_nasty.py`: 63 commits (final size: the selector uses 70% of 270 s
+above 48 commits) mixing 26 official-style commits, 10 class-level edits (state
+comparisons), the 4 leak controls (state checks), 4 mutable-default probes (state checks
+too costly -> every test), copy-only edits, a new test module with an import side effect,
+`sqlglot/__init__.py` import order (1600 failing), a new conftest, pytest config, a test
+file that no longer parses, the optimizer loop (every optimizer test loops forever), mg97
+(`Expression.copy` returns self), a syntax error in `expressions/core.py`, `sqlglot`
+raising at import, a test module that sleeps at import, one that spins at import, a sqlglot
+module that spins at import, and a helper that loops forever.
+
+| run | wall | lines | valid | missed (55 labelled) |
+| --- | ---: | ---: | --- | ---: |
+| M33 native (Apple M1) | 161 s | 63 | yes | 0 |
+| M33 container, emulated amd64, scorer limits | 234 s | 63 | yes | 0 |
+| M34 native | 100 s | 63 | yes | 0 |
+| M34 container, emulated amd64, scorer limits | 197 s | 63 | yes | 0 |
+
+Deadline logic: analysis stops at 50% of the budget (later commits get every test), state
+comparisons only start before 30%, verification jobs are killed at the budget (their
+candidates are included); after that only packing and printing remain (M34: about 5 s
+emulated, 2 s native). Each job also stops at its CPU budget (max(30 s, 4 x estimate + 15
+s)) or at 2 x budget + 15 s of wall time. A huge new module (20,000 functions) and a patch
+touching 60 files analyse in about 1 s.
+
+Child failures degrade to "include more", never to a missing line: SIGKILL of a random child
+every 1 s on the kit sample (4 kills) and every 0.5 s on val2 (38 kills): valid output, a
+line for every commit, 0 missed (`.work/chaos.sh`). A memory bomb in a verified function
+(child RSS reached 3.9 GB in the 4 GB container): the child was killed, the commit's
+candidates were included, output valid. Determinism: three native runs of the kit sample
+and of val9 give byte-identical output (selections are sorted and packed
+deterministically; only runs that hit time limits can differ, and they stay valid).
