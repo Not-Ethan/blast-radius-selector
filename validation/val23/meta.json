@@ -1,0 +1,58 @@
+{
+ "n001": {
+  "kind": "sql_method_rename",
+  "desc": [
+   "DuckDBGenerator.timeslice_sql -> timeslice2_sql (dispatch by name)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "names that feed keys (generator *_sql dispatch, _sql_names, arg_types keys) and test helpers/base classes"
+ },
+ "n002": {
+  "kind": "sql_method_rename",
+  "desc": [
+   "DuckDBGenerator.bytestring_sql -> bytestring_sqlx"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "names that feed keys (generator *_sql dispatch, _sql_names, arg_types keys) and test helpers/base classes"
+ },
+ "n003": {
+  "kind": "sql_method_rename",
+  "desc": [
+   "SQLiteGenerator.nullsafeeq_sql -> nullsafe_eq_sql"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "names that feed keys (generator *_sql dispatch, _sql_names, arg_types keys) and test helpers/base classes"
+ },
+ "n004": {
+  "kind": "sql_names",
+  "desc": [
+   "If._sql_names drops IIF"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "names that feed keys (generator *_sql dispatch, _sql_names, arg_types keys) and test helpers/base classes"
+ },
+ "n005": {
+  "kind": "arg_types_key",
+  "desc": [
+   "ArrayRemove.arg_types null_propagation -> null_propagate"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "names that feed keys (generator *_sql dispatch, _sql_names, arg_types keys) and test helpers/base classes"
+ },
+ "n006": {
+  "kind": "test_helper",
+  "desc": [
+   "tests/helpers._filter_comments drops lines starting with \"-\""
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "names that feed keys (generator *_sql dispatch, _sql_names, arg_types keys) and test helpers/base classes"
+ },
+ "n007": {
+  "kind": "test_base_attr",
+  "desc": [
+   "Validator.dialect None -> \"duckdb\""
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "names that feed keys (generator *_sql dispatch, _sql_names, arg_types keys) and test helpers/base classes"
+ }
+}

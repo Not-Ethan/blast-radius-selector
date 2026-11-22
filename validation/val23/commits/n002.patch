@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -2486,7 +2486,7 @@
+         )
+         return self.sql(exp.Literal.string(text))
+ 
+-    def bytestring_sql(self, expression: exp.ByteString) -> str:
++    def bytestring_sqlx(self, expression: exp.ByteString) -> str:
+         if not expression.args.get("is_bytes"):
+             return super().bytestring_sql(expression)
+ 

@@ -345,6 +345,7 @@ def case_full_costs(maps, node):
 # commit simply includes every test.
 LEAK_CHECK_CPU = float(os.environ.get("BR_LEAK_CHECK_CPU", "1.2"))
 LEAK_MAX_CPU = float(os.environ.get("BR_LEAK_MAX_CPU", "20.0"))
+LEAK_RESTRICT = os.environ.get("BR_LEAK_RESTRICT", "1") == "1"  # fixture-loop tests on the cases that reach the edit
 STATE_CHECK_CPU = float(os.environ.get("BR_STATE_CHECK_CPU", "0.65"))  # local CPU s of one comparison (0.60-0.70 measured)
 # Scorer CPU per local CPU second for this work: practice M13 -> M17 cost +9.4 s of
 # scorer CPU for about +5 s of local comparison CPU per 40 official-style commits.
@@ -555,19 +556,21 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
 
     if getattr(found, "leak_check", ""):
         # The edit may leave state behind that later tests see (selector/leak.py):
-        # run every test that can execute it in one process (fixture-loop tests only
-        # on the cases that can: the others run no changed code), then check the
-        # state of every sqlglot class and module and every loaded test module;
-        # anything that cannot be run that way, or a changed state, means every test.
+        # run every test that can execute it in one process (fixture-loop tests on
+        # the cases that reach the edit, BR_LEAK_RESTRICT=0 runs them whole: a later
+        # case could read what an earlier one left in the test's own objects, which no
+        # fingerprint sees; 0 of 63 labelled copy edits did), then check the state of
+        # every sqlglot class and module and every loaded test module; anything that
+        # cannot be run that way, or a changed state, means every test.
         plan.everything = set(seconds_of)
         run = sorted(certain | possible)
         plan.stage = {}
         cost = {}
         for n in run:
             full = cpu_estimate(maps, index_of[n], seconds_of[n]) if n in index_of else seconds_of[n] * 3 + 1
-            need = plan.restrict.get(n)
+            need = plan.restrict.get(n) if LEAK_RESTRICT else None
             cost[n] = restricted_estimate(maps, id_of_number[n], need, full) if need else full
-        plan.restrict = {n: plan.restrict[n] for n in run if n in plan.restrict}
+        plan.restrict = {n: plan.restrict[n] for n in run if n in plan.restrict} if LEAK_RESTRICT else {}
         classes = {"::".join(id_of_number[n].split("::")[:2]) for n in run if n in id_of_number}
         cpu = VERIFY_OVERHEAD + LEAK_CHECK_CPU + sum(cost.values()) + sum(maps.setup_cost.get(c, 0.0) for c in classes)
         costly = [n for n in run if cost[n] > max(EXPENSIVE_CPU, EXPENSIVE_SHARE * seconds_of[n])]

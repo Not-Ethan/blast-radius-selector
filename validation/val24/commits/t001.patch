@@ -1,0 +1,19 @@
+diff --git a/sqlglot/optimizer/pushdown_projections.py b/sqlglot/optimizer/pushdown_projections.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/pushdown_projections.py
++++ b/sqlglot/optimizer/pushdown_projections.py
+@@ -53,11 +53,11 @@
+     # Scopes as returned by traverse_scope, reused when pruning projections.
+     scopes: list[Scope]
+ 
++    # scope -> for each of its output columns, the set of root outputs that require it
++    selections: dict[Scope, list[int]]
++
+     # scope -> set of root outputs that require this scope
+     live: dict[Scope, int]
+-
+-    # scope -> for each of its output columns, the set of root outputs that require it
+-    selections: dict[Scope, list[int]]
+ 
+     # SELECT scope -> whether an empty projection list needs an aggregate placeholder
+     is_agg: dict[Scope, bool]

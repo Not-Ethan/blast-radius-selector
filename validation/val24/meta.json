@@ -1,0 +1,26 @@
+{
+ "t001": {
+  "kind": "namedtuple_field",
+  "desc": [
+   "ProjectionReachability: swap fields live and selections"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "NamedTuple field edits"
+ },
+ "t002": {
+  "kind": "namedtuple_field",
+  "desc": [
+   "ProjectionReachability: add field extra after live"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "NamedTuple field edits"
+ },
+ "t003": {
+  "kind": "namedtuple_field",
+  "desc": [
+   "ProjectionReachability: default for set_names"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "NamedTuple field edits"
+ }
+}

@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/sqlite.py b/sqlglot/generators/sqlite.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/sqlite.py
++++ b/sqlglot/generators/sqlite.py
+@@ -129,7 +129,7 @@
+         exp.DType.VARBINARY: "BLOB",
+     }
+ 
+-    def nullsafeeq_sql(self, expression: exp.NullSafeEQ) -> str:
++    def nullsafe_eq_sql(self, expression: exp.NullSafeEQ) -> str:
+         return self.binary(expression, "IS")
+ 
+     def nullsafeneq_sql(self, expression: exp.NullSafeNEQ) -> str:

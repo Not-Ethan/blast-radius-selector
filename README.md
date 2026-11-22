@@ -212,7 +212,7 @@ ones against the patched tree and keep only the ones that fail.**
    **State left behind for later tests** (`selector/leak.py`). pytest runs the whole
    suite in one process, so an edit can change what a later test sees through an object
    that outlives a test (a class attribute or table, a module global, a registry), even
-   for a test that never runs the edit. An edit inside one of the 9 sqlglot functions
+   for a test that never runs the edit. An edit inside one of the 8 sqlglot functions
    that already write such objects includes every test. An edit that introduces such a
    write, or changes copying/aliasing (a `copy` flag or call, a container copy, an
    in-place operator), `global`/`nonlocal`, a mutable default or a caching decorator, is
@@ -335,7 +335,9 @@ spot check ever failed outside the candidate set).
   matching one (e.g. an edit that passes a different shared object to a function that
   mutates its argument, with no copy involved) is not checked, and
   the check compares state after the candidates ran, so damage repaired by a later
-  candidate is not seen.
+  candidate is not seen, nor damage a fixture-loop case leaves in its test's own objects
+  for a later case of the same test that does not reach the edit (0 of 63 labelled copy
+  edits did that).
 * The state comparison sees every attribute of every sqlglot class and module global
   (recursively through containers, functions, closures and object attributes), but
   not caches outside them (e.g. the contents of an `lru_cache` filled at import time)

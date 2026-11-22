@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/functions.py b/sqlglot/expressions/functions.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/functions.py
++++ b/sqlglot/expressions/functions.py
+@@ -95,7 +95,7 @@
+ 
+ class If(Expression, Func):
+     arg_types = {"this": True, "true": True, "false": False}
+-    _sql_names = ["IF", "IIF"]
++    _sql_names = ["IF"]
+ 
+ 
+ class Case(Expression, Func):

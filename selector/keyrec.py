@@ -353,7 +353,12 @@ def _fp(value, depth) -> str:
     if isinstance(value, (set, frozenset)):
         return f"{type(value).__name__}:" + _h(repr(sorted(fp(v, depth + 1) for v in value)))
     if isinstance(value, dict):
-        return f"{type(value).__name__}:" + _h(repr(sorted((fp(k, depth + 1), fp(v, depth + 1)) for k, v in value.items())))
+        # in order: code that iterates a dict sees its insertion order (the multiset
+        # reading, for values whose order differs between hash seeds, sorts it)
+        if len(value) > 1:
+            SEQ[0] += 1
+        items = [(fp(k, depth + 1), fp(v, depth + 1)) for k, v in value.items()]
+        return f"{type(value).__name__}:" + _h(repr(sorted(items) if UNORDERED[0] else items))
     if isinstance(value, types.MethodType):
         return "method:" + _h(repr([fp(value.__func__, depth + 1), fp(value.__self__, depth + 1)]))
     kind = type(value)

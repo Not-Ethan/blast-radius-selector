@@ -13,13 +13,13 @@ run in that order in the same child.
 
 classify() sorts an edit of a .py file:
 * hard: an edited function's original body already writes to an object that outlives a
-  test (9 functions in sqlglot at the pinned commit, e.g. the parser's CONNECT BY
+  test (8 functions in sqlglot at the pinned commit, e.g. the parser's CONNECT BY
   helper that sets and pops a parser-table entry). Every test is included.
 * soft: the edit introduces such a write, or changes copying or aliasing (a changed
   line mentions `copy`, a container copy or an in-place operator is added or removed),
   `global`/`nonlocal` declarations, a mutable default or a caching decorator. The
-  commit is narrowed as usual, then every candidate runs in one verification child in
-  pytest order, and the state of every sqlglot class and module (and every loaded test
+  commit is narrowed as usual, then every candidate runs in one verification child
+  (fixture loops on the cases that reach the edit), and the state of every sqlglot class and module (and every loaded test
   module) is fingerprinted before and after the run (state_leaks). Any change the
   pinned suite itself never makes, a candidate too expensive to run, or a check that
   cannot run, includes every test.
@@ -59,6 +59,10 @@ def _locals(func) -> set:
             glob |= set(n.names)
         if isinstance(n, (ast.For, ast.comprehension)) and isinstance(getattr(n, "target", None), ast.Name):
             names.add(n.target.id)
+        if isinstance(n, ast.ExceptHandler) and n.name:
+            names.add(n.name)  # `except E as e`: the exception object of this call
+        if isinstance(n, (ast.MatchAs, ast.MatchStar)) and n.name:
+            names.add(n.name)
     return names - glob
 
 
