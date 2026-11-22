@@ -9,7 +9,9 @@ from __future__ import annotations
 import os
 import re
 import tokenize
+import importlib.machinery
 import io
+import sys
 from dataclasses import dataclass, field
 
 from .analyze import analyze_python
@@ -87,6 +89,36 @@ def decode_source(raw: bytes) -> str | None:
     if text.startswith("﻿"):
         text = text[1:]
     return text
+
+
+def _shadowed_module(rel: str, repo_root: str) -> str | None:
+    """Name of the standard-library or installed module that a new repository-root
+    module or package would shadow, or None."""
+    parts = rel.split("/")
+    if len(parts) == 1 and rel.endswith(".py"):
+        name = rel[:-3]
+    elif len(parts) == 2 and parts[1] == "__init__.py":
+        name = parts[0]
+    else:
+        return None
+    if not name.isidentifier():
+        return None
+    if name in ("sitecustomize", "usercustomize") or name in sys.stdlib_module_names:
+        return name
+    # Look only where the test run looks besides the repository: not in the repository
+    # itself and not in the selector's own directory (sys.path[0] here).
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.abspath(repo_root)
+    paths = []
+    for entry in sys.path:
+        full = os.path.abspath(entry or ".")
+        if full != here and full != root and not full.startswith(root + os.sep):
+            paths.append(entry)
+    try:
+        found = importlib.machinery.PathFinder.find_spec(name, paths) is not None
+    except Exception:  # noqa: BLE001 - cannot tell: assume it is shadowed
+        found = True
+    return name if found else None
 
 
 def _collected_by_pytest(rel: str) -> bool:
@@ -338,6 +370,15 @@ class CandidateFinder:
     def _new_file(self, rel: str, new_text: str | None, report: FileReport):
         maps = self.maps
         report.kind = "new"
+        shadowed = _shadowed_module(rel, self.root)
+        if shadowed:
+            # The repository root is on sys.path ahead of the installed packages: a new
+            # top-level module or package named like a standard-library or installed
+            # module (or sitecustomize) replaces it for every importer, including the
+            # third-party packages tests import (pandas importing dateutil).
+            report.detail = f"new top-level module shadows {shadowed}"
+            report.other |= maps.all_mask
+            return
         if _collected_by_pytest(rel) and not _inert_test_module(new_text):
             # pytest imports every test module before the first test runs: code that a new
             # test module runs at import (or a module that does not even import) can change
