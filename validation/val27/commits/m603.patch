@@ -1,0 +1,11 @@
+diff --git a/tests/conftest.py b/tests/conftest.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/tests/conftest.py
+@@ -0,0 +1,5 @@
++import sqlglot
++
++
++def pytest_configure(config):
++    sqlglot.pretty = True

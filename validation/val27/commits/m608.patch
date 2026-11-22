@@ -1,0 +1,13 @@
+diff --git a/tests/helpers.py b/tests/helpers.py
+index 0000000..1111111 100644
+--- a/tests/helpers.py
++++ b/tests/helpers.py
+@@ -1,7 +1,7 @@
+ import os
+ 
+ FILE_DIR = os.path.dirname(__file__)
+-FIXTURES_DIR = os.path.join(FILE_DIR, "fixtures")
++FIXTURES_DIR = os.path.join(FILE_DIR, "fixture")
+ 
+ 
+ def is_compiled(module):

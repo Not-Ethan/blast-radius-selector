@@ -1,0 +1,106 @@
+{
+ "m601": {
+  "kind": "test_file_delete",
+  "desc": [
+   "delete tests/test_helper.py"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m602": {
+  "kind": "test_file_rename",
+  "desc": [
+   "rename tests/test_helper.py -> tests/test_helper_renamed.py"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m603": {
+  "kind": "conftest_new",
+  "desc": [
+   "new tests/conftest.py setting sqlglot.pretty = True"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m604": {
+  "kind": "pytest_config",
+  "desc": [
+   "new pytest.ini turning warnings into errors"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m605": {
+  "kind": "pytest_config",
+  "desc": [
+   "pyproject.toml gains [tool.pytest.ini_options] filterwarnings = error"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m606": {
+  "kind": "fixture_new",
+  "desc": [
+   "new fixture file nobody reads"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m607": {
+  "kind": "test_helper_module",
+  "desc": [
+   "tests/helpers.py FIXTURES_DIR gains a trailing separator (no effect)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m608": {
+  "kind": "test_helper_module",
+  "desc": [
+   "tests/helpers.py FIXTURES_DIR points to a missing folder"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m609": {
+  "kind": "non_python_read",
+  "desc": [
+   "comment added to sqlglotc/setup.py"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m610": {
+  "kind": "test_syntax_error",
+  "desc": [
+   "tests/test_helper.py no longer parses"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m611": {
+  "kind": "outside_files",
+  "desc": [
+   "README.md edit"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m612": {
+  "kind": "outside_files",
+  "desc": [
+   "root setup.py comment"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ },
+ "m613": {
+  "kind": "source_read_as_data",
+  "desc": [
+   "comment in sqlglot/typing/bigquery.py (a file a test reads as text)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "test-suite plumbing (test file delete/rename/syntax error, new conftest, pytest config, new fixture, tests/helpers.py, files read as text, files outside sqlglot/ and tests/); labelled with pytest collecting the tests directory"
+ }
+}

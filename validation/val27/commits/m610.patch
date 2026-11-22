@@ -1,0 +1,14 @@
+diff --git a/tests/test_helper.py b/tests/test_helper.py
+index 0000000..1111111 100644
+--- a/tests/test_helper.py
++++ b/tests/test_helper.py
+@@ -4,7 +4,8 @@
+ from sqlglot.helper import merge_ranges, name_sequence, to_int, tsort
+ 
+ 
+-class TestHelper(unittest.TestCase):
++class TestHelper(unittest.TestCase)
++
+     def test_tsort(self):
+         self.assertEqual(tsort({"a": set()}), ["a"])
+         self.assertEqual(tsort({"a": {"b"}}), ["b", "a"])

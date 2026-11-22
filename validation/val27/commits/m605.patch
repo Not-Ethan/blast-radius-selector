@@ -1,0 +1,14 @@
+diff --git a/pyproject.toml b/pyproject.toml
+index 0000000..1111111 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -26,6 +26,9 @@
+ requires = ["setuptools >= 61.0", "setuptools_scm >= 10.2"]
+ build-backend = "setuptools.build_meta"
+ 
++[tool.pytest.ini_options]
++filterwarnings = ["error"]
++
+ [tool.setuptools]
+ include-package-data = false
+ 
