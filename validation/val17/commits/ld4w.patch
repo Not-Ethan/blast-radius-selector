@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -3854,7 +3854,7 @@
+         )
+ 
+         result = exp.replace_placeholders(
+-            self.ARRAYS_ZIP_TEMPLATE.copy(),
++            self.ARRAYS_ZIP_TEMPLATE,
+             null_check=exp.or_(*[arg.is_(exp.Null()) for arg in args]),
+             all_empty_check=exp.and_(
+                 *[

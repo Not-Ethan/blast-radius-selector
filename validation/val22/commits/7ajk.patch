@@ -1,0 +1,43 @@
+diff --git a/sqlglot/parsers/tsql.py b/sqlglot/parsers/tsql.py
+index 0000000..1111111 100644
+--- a/sqlglot/parsers/tsql.py
++++ b/sqlglot/parsers/tsql.py
+@@ -56,38 +56,6 @@
+ # Unsupported options:
+ # - OPTIMIZE FOR ( @variable_name { UNKNOWN | = <literal_constant> } [ , ...n ] )
+ # - TABLE HINT
+-OPTIONS: parser.OPTIONS_TYPE = {
+-    **dict.fromkeys(
+-        (
+-            "DISABLE_OPTIMIZED_PLAN_FORCING",
+-            "FAST",
+-            "IGNORE_NONCLUSTERED_COLUMNSTORE_INDEX",
+-            "LABEL",
+-            "MAXDOP",
+-            "MAXRECURSION",
+-            "MAX_GRANT_PERCENT",
+-            "MIN_GRANT_PERCENT",
+-            "NO_PERFORMANCE_SPOOL",
+-            "QUERYTRACEON",
+-            "RECOMPILE",
+-        ),
+-        tuple(),
+-    ),
+-    "CONCAT": ("UNION",),
+-    "DISABLE": ("EXTERNALPUSHDOWN", "SCALEOUTEXECUTION"),
+-    "EXPAND": ("VIEWS",),
+-    "FORCE": ("EXTERNALPUSHDOWN", "ORDER", "SCALEOUTEXECUTION"),
+-    "HASH": ("GROUP", "JOIN", "UNION"),
+-    "KEEP": ("PLAN",),
+-    "KEEPFIXED": ("PLAN",),
+-    "LOOP": ("JOIN",),
+-    "MERGE": ("JOIN", "UNION"),
+-    "OPTIMIZE": (("FOR", "UNKNOWN"),),
+-    "ORDER": ("GROUP",),
+-    "PARAMETERIZATION": ("FORCED", "SIMPLE"),
+-    "ROBUST": ("PLAN",),
+-    "USE": ("PLAN",),
+-}
+ 
+ 
+ FOR_XML_OPTIONS: parser.OPTIONS_TYPE = {

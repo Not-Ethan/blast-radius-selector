@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/core.py
++++ b/sqlglot/expressions/core.py
+@@ -2108,7 +2108,7 @@
+         expr = self.expression
+         return Interval(
+             this=expr.copy() if expr is not None else None,
+-            unit=self.unit.copy() if self.unit else None,
++            unit=self.unit if self.unit else None,
+         )
+ 
+ 

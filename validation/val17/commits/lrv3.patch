@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -3664,7 +3664,7 @@
+             return self.func("MINHASH", k, *exprs)
+ 
+         expr = exprs[0]
+-        result = exp.replace_placeholders(self.MINHASH_TEMPLATE.copy(), expr=expr, k=k)
++        result = exp.replace_placeholders(self.MINHASH_TEMPLATE, expr=expr, k=k)
+         return f"({self.sql(result)})"
+ 
+     def minhashcombine_sql(self, expression: exp.MinhashCombine) -> str:

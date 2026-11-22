@@ -1,0 +1,12 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -167,6 +167,7 @@
+     DuckDB's LAST_DAY only supports finding the last day of a month.
+     For other date parts (year, quarter, week), we need to implement equivalent logic.
+     """
++    MAX_BIT_POSITION.set("this", "7")
+     date_expr = expression.this
+     unit_expr = expression.args.get("unit")
+ 

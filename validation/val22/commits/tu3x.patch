@@ -1,0 +1,24 @@
+diff --git a/sqlglot/typing/bigquery.py b/sqlglot/typing/bigquery.py
+index 0000000..1111111 100644
+--- a/sqlglot/typing/bigquery.py
++++ b/sqlglot/typing/bigquery.py
+@@ -66,7 +66,7 @@
+     return self._set_type(expression, exp.DType.DATETIME)
+ 
+ 
+-def _annotate_int_pair_as_double(
++def _annotate_int_pair_as_double_renamed(
+     self: TypeAnnotator, expression: exp.SafeDivide | exp.Pow
+ ) -> exp.Expr:
+     """
+@@ -439,8 +439,8 @@
+     },
+     exp.ParseBignumeric: {"returns": exp.DType.BIGDECIMAL},
+     exp.ParseNumeric: {"returns": exp.DType.DECIMAL},
+-    exp.Pow: {"annotator": lambda self, e: _annotate_int_pair_as_double(self, e)},
+-    exp.SafeDivide: {"annotator": lambda self, e: _annotate_int_pair_as_double(self, e)},
++    exp.Pow: {"annotator": lambda self, e: _annotate_int_pair_as_double_renamed(self, e)},
++    exp.SafeDivide: {"annotator": lambda self, e: _annotate_int_pair_as_double_renamed(self, e)},
+     exp.ToCodePoints: {
+         "annotator": lambda self, e: self._set_type(
+             e, exp.DataType.from_str("ARRAY<BIGINT>", dialect="bigquery")

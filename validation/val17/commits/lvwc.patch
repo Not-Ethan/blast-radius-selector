@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/qualify_tables.py b/sqlglot/optimizer/qualify_tables.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/qualify_tables.py
++++ b/sqlglot/optimizer/qualify_tables.py
+@@ -62,7 +62,7 @@
+     def _qualify(table: exp.Table) -> None:
+         if isinstance(table.this, exp.Identifier):
+             if db and not table.args.get("db"):
+-                table.set("db", db.copy())
++                table.set("db", db)
+             if catalog and not table.args.get("catalog") and table.args.get("db"):
+                 table.set("catalog", catalog.copy())
+ 

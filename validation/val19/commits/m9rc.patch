@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/unnest_subqueries.py b/sqlglot/optimizer/unnest_subqueries.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/unnest_subqueries.py
++++ b/sqlglot/optimizer/unnest_subqueries.py
+@@ -151,7 +151,7 @@
+             return
+ 
+         _replace(select.parent, column)
+-        parent_select.join(select, join_type="CROSS", join_alias=alias, copy=False)
++        pass
+ 
+         return
+ 

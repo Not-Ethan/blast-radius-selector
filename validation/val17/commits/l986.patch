@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/core.py
++++ b/sqlglot/expressions/core.py
+@@ -1677,7 +1677,7 @@
+     @classmethod
+     def from_arg_list(cls, args: Sequence[object]) -> Self:
+         if cls.is_var_len_args:
+-            all_arg_keys = tuple(cls.arg_types)
++            all_arg_keys = cls.arg_types
+             var_len_index = all_arg_keys.index(cls.var_len_arg_key)
+ 
+             args_dict = {arg_key: arg for arg, arg_key in zip(args, all_arg_keys[:var_len_index])}

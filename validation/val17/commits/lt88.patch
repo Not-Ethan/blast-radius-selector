@@ -1,0 +1,13 @@
+diff --git a/sqlglot/schema.py b/sqlglot/schema.py
+index 0000000..1111111 100644
+--- a/sqlglot/schema.py
++++ b/sqlglot/schema.py
+@@ -374,7 +374,7 @@
+             "visible": self.visible.copy(),
+             "dialect": self.dialect,
+             "normalize": self.normalize,
+-            "udf_mapping": self.udf_mapping.copy(),
++            "udf_mapping": self.udf_mapping,
+             **kwargs,
+         }
+         return MappingSchema(self.mapping.copy() if schema is None else schema, **mapping_kwargs)

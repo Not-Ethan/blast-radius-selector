@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/core.py
++++ b/sqlglot/expressions/core.py
+@@ -2690,7 +2690,7 @@
+     expression: ExpOrStr,
+     instance: E,
+     arg: str,
+-    copy: bool = True,
++    copy: bool = False,
+     prefix: str | None = None,
+     into: Type[Expr] | None = None,
+     dialect: DialectType = None,

@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generator.py b/sqlglot/generator.py
+index 0000000..1111111 100644
+--- a/sqlglot/generator.py
++++ b/sqlglot/generator.py
+@@ -1021,7 +1021,7 @@
+             The SQL string corresponding to `expression`.
+         """
+         if copy:
+-            expression = expression.copy()
++            pass
+ 
+         expression = self.preprocess(expression)
+ 

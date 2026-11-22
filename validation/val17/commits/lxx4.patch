@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/unnest_subqueries.py b/sqlglot/optimizer/unnest_subqueries.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/unnest_subqueries.py
++++ b/sqlglot/optimizer/unnest_subqueries.py
+@@ -462,7 +462,7 @@
+                 ]
+             )
+             if use_struct
+-            else array_keys[0].copy()
++            else array_keys[0]
+         )
+         select.select(
+             exp.alias_(exp.ArrayAgg(this=array_item), array_alias, quoted=False), copy=False

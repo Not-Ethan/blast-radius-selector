@@ -1,0 +1,13 @@
+diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py
+index 0000000..1111111 100644
+--- a/sqlglot/dialects/dialect.py
++++ b/sqlglot/dialects/dialect.py
+@@ -1139,7 +1139,7 @@
+             result = cls.get(dialect_name.strip())
+             if not result:
+                 # Include both built-in dialects and any loaded dialects for better error messages
+-                all_dialects = set(DIALECT_MODULE_NAMES) | set(cls._classes.keys())
++                all_dialects = DIALECT_MODULE_NAMES | set(cls._classes.keys())
+                 suggest_closest_match_and_fail("dialect", dialect_name, all_dialects)
+ 
+             assert result is not None

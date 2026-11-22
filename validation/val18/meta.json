@@ -1,0 +1,34 @@
+{
+ "c001": {
+  "kind": "leak-control",
+  "desc": [
+   "DuckDBParser._parse_min_max pops IF from the (inherited) FUNCTIONS table"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "hand-written run-time writes to shared state"
+ },
+ "c002": {
+  "kind": "leak-control",
+  "desc": [
+   "_last_day_sql mutates the module-level MAX_BIT_POSITION literal"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "hand-written run-time writes to shared state"
+ },
+ "c003": {
+  "kind": "leak-control",
+  "desc": [
+   "DuckDBParser._parse_tilde drops hive from the dialect registry"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "hand-written run-time writes to shared state"
+ },
+ "c004": {
+  "kind": "leak-control",
+  "desc": [
+   "_last_day_sql sets DuckDBGenerator.LIMIT_FETCH at run time"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "hand-written run-time writes to shared state"
+ }
+}

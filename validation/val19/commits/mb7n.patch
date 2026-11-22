@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/qualify_columns.py b/sqlglot/optimizer/qualify_columns.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/qualify_columns.py
++++ b/sqlglot/optimizer/qualify_columns.py
+@@ -1354,7 +1354,7 @@
+                     using_tables = using_column_tables[name]
+                     coalesce_args = [exp.column(name, table=table) for table in using_tables]
+ 
+-                    selection = alias(exp.func("coalesce", *coalesce_args), alias=name, copy=False)
++                    pass
+                 else:
+                     quoted = name in quoted_columns or (
+                         # if it has characters that the dialect would have changed, infer that it was quoted.

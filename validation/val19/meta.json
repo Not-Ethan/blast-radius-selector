@@ -1,0 +1,209 @@
+{
+ "m28i": {
+  "kind": "copy_removed",
+  "tests_on_line": 74,
+  "desc": [
+   "sqlglot/optimizer/canonicalize_internal_names.py:279 'output_map = scope_outputs.get(id(scope.set_operation_scopes[0].expression), {}).copy()' -> 'output_map = scope_outputs.get(id(scope.set_operation_scopes[0].expression), {})'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "m4ef": {
+  "kind": "default_copy_false",
+  "tests_on_line": 965,
+  "desc": [
+   "sqlglot/expressions/core.py:2693 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "m6in": {
+  "kind": "deepcopy_removed",
+  "tests_on_line": 761,
+  "desc": [
+   "sqlglot/expressions/core.py:1022 'meta[k] = deepcopy(v)' -> 'meta[k] = v'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "m76j": {
+  "kind": "copy_negated",
+  "tests_on_line": 21,
+  "desc": [
+   "sqlglot/expressions/functions.py:111 'instance = maybe_copy(self, copy)' -> 'instance = maybe_copy(self, (not copy))'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "m7qz": {
+  "kind": "copy_removed",
+  "tests_on_line": 2013,
+  "desc": [
+   "sqlglot/expressions/core.py:1267 'for node in (self.copy() if copy else self).dfs(prune=lambda n: n is not new_node):' -> 'for node in (self if copy else self).dfs(prune=lambda n: n is not new_node):'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "m8se": {
+  "kind": "copy_kw_false",
+  "tests_on_line": 648,
+  "desc": [
+   "sqlglot/expressions/core.py:1409 'other = convert(other, copy=True)' -> 'other = convert(other, copy=False)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "m9rc": {
+  "kind": "copy_stmt_deleted",
+  "tests_on_line": 46,
+  "desc": [
+   "sqlglot/optimizer/unnest_subqueries.py:154 'parent_select.join(select, join_type=\"CROSS\", join_alias=alias, copy=False)' -> 'pass'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mb5v": {
+  "kind": "copy_negated",
+  "tests_on_line": 474,
+  "desc": [
+   "sqlglot/expressions/builders.py:1025 'kwargs = {key: maybe_parse(value, dialect=dialect, copy=copy) for key, value in kwargs.items()}' -> 'kwargs = {key: maybe_parse(value, dialect=dialect, copy=(not copy)) for key, value in kwargs.items()}'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mb7n": {
+  "kind": "copy_stmt_deleted",
+  "tests_on_line": 27,
+  "desc": [
+   "sqlglot/optimizer/qualify_columns.py:1357 'selection = alias(exp.func(\"coalesce\", *coalesce_args), alias=name, copy=False)' -> 'pass'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mbex": {
+  "kind": "deepcopy_removed",
+  "tests_on_line": 3013,
+  "desc": [
+   "sqlglot/expressions/core.py:1014 'copy.comments = deepcopy(node.comments)' -> 'copy.comments = node.comments'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mbzr": {
+  "kind": "copy_negated",
+  "tests_on_line": 1690,
+  "desc": [
+   "sqlglot/expressions/core.py:3170 'col = maybe_copy(col, copy) if isinstance(col, Expr) else to_identifier(col, quoted=quoted)' -> 'col = maybe_copy(col, (not copy)) if isinstance(col, Expr) else to_identifier(col, quoted=quoted)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "md9d": {
+  "kind": "default_copy_false",
+  "tests_on_line": 2013,
+  "desc": [
+   "sqlglot/expressions/core.py:1262 'self, fun: t.Callable[..., T], *args: object, copy: bool = True, **kwargs: object' -> 'self, fun: t.Callable[..., T], *args: object, copy: bool = False, **kwargs: object'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mdhe": {
+  "kind": "copy_negated",
+  "tests_on_line": 1690,
+  "desc": [
+   "sqlglot/expressions/core.py:3175 'db=to_identifier(db, quoted=quoted, copy=copy),' -> 'db=to_identifier(db, quoted=quoted, copy=(not copy)),'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "meve": {
+  "kind": "copy_removed",
+  "tests_on_line": 157,
+  "desc": [
+   "sqlglot/optimizer/qualify_tables.py:65 'table.set(\"db\", db.copy())' -> 'table.set(\"db\", db)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mfd4": {
+  "kind": "deepcopy_removed",
+  "tests_on_line": 2783,
+  "desc": [
+   "sqlglot/expressions/core.py:1761 'return Dot.build(deepcopy(parts)) if len(parts) > 1 else parts[0]' -> 'return Dot.build(parts) if len(parts) > 1 else parts[0]'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mfeb": {
+  "kind": "copy_removed",
+  "tests_on_line": 43,
+  "desc": [
+   "sqlglot/optimizer/normalize.py:39 'original = node.copy()' -> 'original = node'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mfwa": {
+  "kind": "default_copy_false",
+  "tests_on_line": 200,
+  "desc": [
+   "sqlglot/expressions/core.py:2860 'copy: bool = True,' -> 'copy: bool = False,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mfzg": {
+  "kind": "copy_removed",
+  "tests_on_line": 91,
+  "desc": [
+   "sqlglot/optimizer/simplify.py:838 'exp.GTE(this=this.copy(), expression=low),' -> 'exp.GTE(this=this, expression=low),'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mgyq": {
+  "kind": "copy_stmt_deleted",
+  "tests_on_line": 5589,
+  "desc": [
+   "sqlglot/generator.py:1024 'expression = expression.copy()' -> 'pass'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mncm": {
+  "kind": "copy_negated",
+  "tests_on_line": 197,
+  "desc": [
+   "sqlglot/expressions/query.py:381 'return union(self, *expressions, distinct=distinct, dialect=dialect, copy=copy, **opts)' -> 'return union(self, *expressions, distinct=distinct, dialect=dialect, copy=(not copy), **opts)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mqgh": {
+  "kind": "default_copy_false",
+  "tests_on_line": 920,
+  "desc": [
+   "sqlglot/expressions/query.py:132 'def subquery(self, alias: ExpOrStr | None = None, copy: bool = True) -> Subquery:' -> 'def subquery(self, alias: ExpOrStr | None = None, copy: bool = False) -> Subquery:'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "mqig": {
+  "kind": "copy_stmt_deleted",
+  "tests_on_line": 965,
+  "desc": [
+   "sqlglot/expressions/core.py:2702 'instance = maybe_copy(instance, copy)' -> 'pass'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ },
+ "my88": {
+  "kind": "copy_stmt_deleted",
+  "tests_on_line": 157,
+  "desc": [
+   "sqlglot/optimizer/qualify_tables.py:67 'table.set(\"catalog\", catalog.copy())' -> 'pass'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks2.py copy edits on lines >= 20 tests run"
+ }
+}

@@ -1,0 +1,12 @@
+diff --git a/sqlglot/planner.py b/sqlglot/planner.py
+index 0000000..1111111 100644
+--- a/sqlglot/planner.py
++++ b/sqlglot/planner.py
+@@ -338,7 +338,6 @@
+ 
+         return "\n".join(lines)
+ 
+-    @property
+     def type_name(self) -> str:
+         return self.__class__.__name__
+ 

@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/qualify_columns.py b/sqlglot/optimizer/qualify_columns.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/qualify_columns.py
++++ b/sqlglot/optimizer/qualify_columns.py
+@@ -1142,7 +1142,7 @@
+         taken_names.add(field.name)
+         new_selections.append(
+             alias(
+-                exp.Dot(this=operand.copy(), expression=field.this.copy()),
++                exp.Dot(this=operand.copy(), expression=field.this),
+                 field.this.copy(),
+                 copy=False,
+             ).assert_is(exp.Alias)

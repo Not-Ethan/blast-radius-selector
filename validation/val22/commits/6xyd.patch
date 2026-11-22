@@ -1,0 +1,24 @@
+diff --git a/tests/dialects/test_dremio.py b/tests/dialects/test_dremio.py
+index 0000000..1111111 100644
+--- a/tests/dialects/test_dremio.py
++++ b/tests/dialects/test_dremio.py
+@@ -280,3 +280,6 @@
+                 "hive": "CAST(a AS FLOAT)",
+             },
+         )
++
++    def test_added_by_patch(self):
++        self.assertEqual(1, 2)
+diff --git a/sqlglot/optimizer/pushdown_projections.py b/sqlglot/optimizer/pushdown_projections.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/pushdown_projections.py
++++ b/sqlglot/optimizer/pushdown_projections.py
+@@ -417,7 +417,7 @@
+     reachability: ProjectionReachability,
+     root: int,
+     journal: Journal | None = None,
+-    remove_ctes: bool = True,
++    remove_ctes: bool = False,
+ ) -> None:
+     """Prune the analyzed tree to the scopes and projections reachable from root output index root.
+ 

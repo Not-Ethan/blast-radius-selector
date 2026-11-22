@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/risingwave.py b/sqlglot/generators/risingwave.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/risingwave.py
++++ b/sqlglot/generators/risingwave.py
+@@ -5,7 +5,7 @@
+ from sqlglot.generators.postgres import PostgresGenerator
+ 
+ 
+-class RisingWaveGenerator(PostgresGenerator):
++class RisingWaveGenerator(object):
+     LOCKING_READS_SUPPORTED = False
+     SUPPORTS_BETWEEN_FLAGS = False
+     CAST_TO_INT_ROUNDS = True

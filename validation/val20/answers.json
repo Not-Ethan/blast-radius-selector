@@ -1,0 +1,33 @@
+{
+"commits": {
+"s001": {
+"failing": [
+383,
+773
+],
+"kind": "class_expr_constant"
+},
+"s002": {
+"failing": [],
+"kind": "class_expr_constant"
+},
+"s003": {
+"failing": [
+27
+],
+"kind": "class_expr_constant"
+},
+"s004": {
+"failing": [
+773
+],
+"kind": "class_expr_constant"
+},
+"s005": {
+"failing": [
+773
+],
+"kind": "class_expr_constant"
+}
+}
+}

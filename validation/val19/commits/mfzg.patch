@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/simplify.py b/sqlglot/optimizer/simplify.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/simplify.py
++++ b/sqlglot/optimizer/simplify.py
+@@ -835,7 +835,7 @@
+             high = expression.args["high"]
+ 
+             expression = exp.and_(
+-                exp.GTE(this=this.copy(), expression=low),
++                exp.GTE(this=this, expression=low),
+                 exp.LTE(this=this.copy(), expression=high),
+                 copy=False,
+             )

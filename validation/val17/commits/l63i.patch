@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/bigquery.py b/sqlglot/generators/bigquery.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/bigquery.py
++++ b/sqlglot/generators/bigquery.py
+@@ -241,7 +241,7 @@
+     folded: exp.Expr = exp.Distinct(expressions=[value]) if distinct else value
+     if order is not None:
+         asc, nulls_first = order
+-        keys = [exp.Ordered(this=value.copy(), desc=not asc or None, nulls_first=asc)]
++        keys = [exp.Ordered(this=value, desc=not asc or None, nulls_first=asc)]
+ 
+         # Aggregate ORDER BY only puts NULLs first when ascending, so other placements need a key
+         if not ignore_nulls and nulls_first is not None and nulls_first != asc:

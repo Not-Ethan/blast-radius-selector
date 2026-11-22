@@ -1,0 +1,220 @@
+{
+"commits": {
+"m28i": {
+"failing": [],
+"kind": "copy_removed"
+},
+"m4ef": {
+"failing": [],
+"kind": "default_copy_false"
+},
+"m6in": {
+"failing": [],
+"kind": "deepcopy_removed"
+},
+"m76j": {
+"failing": [],
+"kind": "copy_negated"
+},
+"m7qz": {
+"failing": [
+27,
+773,
+1191,
+1211
+],
+"kind": "copy_removed"
+},
+"m8se": {
+"failing": [
+1434,
+1440
+],
+"kind": "copy_kw_false"
+},
+"m9rc": {
+"failing": [
+1104,
+1106,
+1133,
+1355,
+1370,
+1440,
+1441,
+1454
+],
+"kind": "copy_stmt_deleted"
+},
+"mb5v": {
+"failing": [],
+"kind": "copy_negated"
+},
+"mb7n": {
+"failing": [
+1314,
+1355,
+1382,
+1387,
+1410
+],
+"kind": "copy_stmt_deleted"
+},
+"mbex": {
+"failing": [],
+"kind": "deepcopy_removed"
+},
+"mbzr": {
+"failing": [
+1151
+],
+"kind": "copy_negated"
+},
+"md9d": {
+"failing": [
+27,
+773,
+1211
+],
+"kind": "default_copy_false"
+},
+"mdhe": {
+"failing": [],
+"kind": "copy_negated"
+},
+"meve": {
+"failing": [
+1314,
+1417
+],
+"kind": "copy_removed"
+},
+"mfd4": {
+"failing": [],
+"kind": "deepcopy_removed"
+},
+"mfeb": {
+"failing": [],
+"kind": "copy_removed"
+},
+"mfwa": {
+"failing": [],
+"kind": "default_copy_false"
+},
+"mfzg": {
+"failing": [],
+"kind": "copy_removed"
+},
+"mgyq": {
+"failing": [
+21,
+27,
+76,
+80,
+81,
+93,
+106,
+129,
+168,
+175,
+188,
+192,
+216,
+222,
+228,
+235,
+252,
+259,
+345,
+396,
+398,
+407,
+422,
+433,
+434,
+449,
+468,
+469,
+476,
+477,
+501,
+546,
+575,
+586,
+607,
+609,
+617,
+622,
+636,
+639,
+713,
+725,
+773,
+785,
+805,
+808,
+812,
+818,
+824,
+838,
+854,
+855,
+897,
+931,
+952,
+954,
+962,
+971,
+972,
+1001,
+1003,
+1009,
+1011,
+1014,
+1015,
+1128,
+1140,
+1141,
+1343,
+1382,
+1588
+],
+"kind": "copy_stmt_deleted"
+},
+"mncm": {
+"failing": [],
+"kind": "copy_negated"
+},
+"mqgh": {
+"failing": [
+1049,
+1088,
+1104,
+1106,
+1111,
+1133,
+1246,
+1355,
+1358,
+1361,
+1370,
+1440,
+1441,
+1454
+],
+"kind": "default_copy_false"
+},
+"mqig": {
+"failing": [
+1004
+],
+"kind": "copy_stmt_deleted"
+},
+"my88": {
+"failing": [
+1314,
+1417
+],
+"kind": "copy_stmt_deleted"
+}
+}
+}

@@ -1,0 +1,13 @@
+diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py
+index 0000000..1111111 100644
+--- a/sqlglot/dialects/dialect.py
++++ b/sqlglot/dialects/dialect.py
+@@ -1588,7 +1588,7 @@
+         targets = [agg_arg]
+ 
+     for target in targets:
+-        target.replace(exp.If(this=cond.copy(), true=target.copy(), false=exp.null()))
++        target.replace(exp.If(this=cond, true=target.copy(), false=exp.null()))
+ 
+     # In dialects where ARRAY_AGG keeps NULLs (e.g. BigQuery, which even fails on them), the
+     # rows that don't satisfy the condition have to be dropped explicitly

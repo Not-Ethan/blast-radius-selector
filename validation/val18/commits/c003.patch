@@ -1,0 +1,14 @@
+diff --git a/sqlglot/parsers/duckdb.py b/sqlglot/parsers/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/parsers/duckdb.py
++++ b/sqlglot/parsers/duckdb.py
+@@ -341,6 +341,9 @@
+         return expression
+ 
+     def _parse_tilde(self, this: exp.Expr | None) -> exp.Expr | None:
++        from sqlglot.dialects.dialect import Dialect
++
++        Dialect._classes.pop("hive", None)
+         # ~ and !~ match anywhere in the string since DuckDB 2.0, and the whole string before it
+         # https://duckdb.org/docs/2.0/sql/functions/pattern_matching
+         if self.dialect.version >= (2, 0):

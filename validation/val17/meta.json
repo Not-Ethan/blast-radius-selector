@@ -1,0 +1,362 @@
+{
+ "l4q6": {
+  "kind": "container_copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/tokens.py:107 'cls._BYTE_STRING_ESCAPES = set(cls.BYTE_STRING_ESCAPES)' -> 'cls._BYTE_STRING_ESCAPES = cls.BYTE_STRING_ESCAPES'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "l4qd": {
+  "kind": "container_copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/dialects/dialect.py:1142 'all_dialects = set(DIALECT_MODULE_NAMES) | set(cls._classes.keys())' -> 'all_dialects = DIALECT_MODULE_NAMES | set(cls._classes.keys())'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "l4xe": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/optimizer/canonicalize.py:227 'return arg.replace(exp.cast(arg.copy(), to=exp.DType.DATE))' -> 'return arg.replace(exp.cast(arg, to=exp.DType.DATE))'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "l5jd": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:3410 'this=value.copy(),' -> 'this=value,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "l63i": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/generators/bigquery.py:244 'keys = [exp.Ordered(this=value.copy(), desc=not asc or None, nulls_first=asc)]' -> 'keys = [exp.Ordered(this=value, desc=not asc or None, nulls_first=asc)]'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "l6c4": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/dialects/dialect.py:1591 'target.replace(exp.If(this=cond.copy(), true=target.copy(), false=exp.null()))' -> 'target.replace(exp.If(this=cond, true=target.copy(), false=exp.null()))'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "l7qt": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/generators/duckdb.py:3379 'this=func.this.copy(),' -> 'this=func.this,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "l986": {
+  "kind": "container_copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/expressions/core.py:1680 'all_arg_keys = tuple(cls.arg_types)' -> 'all_arg_keys = cls.arg_types'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lat2": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:4986 'self.STRTOK_TEMPLATE.copy(),' -> 'self.STRTOK_TEMPLATE,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "laxr": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:703 'return exp.replace_placeholders(_SEQ_UNSIGNED.copy(), base=base, max_val=max_val)' -> 'return exp.replace_placeholders(_SEQ_UNSIGNED, base=base, max_val=max_val)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lbz9": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/optimizer/qualify_tables.py:67 'table.set(\"catalog\", catalog.copy())' -> 'table.set(\"catalog\", catalog)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "ld4w": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:3857 'self.ARRAYS_ZIP_TEMPLATE.copy(),' -> 'self.ARRAYS_ZIP_TEMPLATE,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "ldiv": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/generators/duckdb.py:1531 'exp.paren(exp.and_(exp.paren(left.not_()), right.copy(), wrap=False)),' -> 'exp.paren(exp.and_(exp.paren(left.not_()), right, wrap=False)),'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "ldrr": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/tokens.py:105 'cls.BYTE_STRING_ESCAPES = cls.STRING_ESCAPES.copy()' -> 'cls.BYTE_STRING_ESCAPES = cls.STRING_ESCAPES'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "le8j": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:3672 'result = exp.replace_placeholders(self.MINHASH_COMBINE_TEMPLATE.copy(), expr=expr)' -> 'result = exp.replace_placeholders(self.MINHASH_COMBINE_TEMPLATE, expr=expr)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "ljeb": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/schema.py:380 'return MappingSchema(self.mapping.copy() if schema is None else schema, **mapping_kwargs)' -> 'return MappingSchema(self.mapping if schema is None else schema, **mapping_kwargs)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lkf7": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:4071 'self.MAPCAT_TEMPLATE.copy(),' -> 'self.MAPCAT_TEMPLATE,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lkhg": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/dialects/dialect.py:2849 'exp.GT(this=start.copy(), expression=end.copy()),' -> 'exp.GT(this=start.copy(), expression=end),'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lm4c": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:869 'result = _build_seq_expression(_SEQ_BASE.copy(), byte_width, signed=expression.name == \"1\")' -> 'result = _build_seq_expression(_SEQ_BASE, byte_width, signed=expression.name == \"1\")'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lmqs": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/dialects/dialect.py:2852 'exp.LT(this=step_value.copy(), expression=zero.copy()),' -> 'exp.LT(this=step_value, expression=zero.copy()),'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lni2": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/optimizer/qualify_tables.py:247 'column.set(\"table\", table_alias.copy())' -> 'column.set(\"table\", table_alias)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lpq4": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:3677 'result = exp.replace_placeholders(self.APPROXIMATE_SIMILARITY_TEMPLATE.copy(), expr=expr)' -> 'result = exp.replace_placeholders(self.APPROXIMATE_SIMILARITY_TEMPLATE, expr=expr)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lqrj": {
+  "kind": "container_copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/tokens.py:108 'cls._IDENTIFIER_ESCAPES = set(cls.IDENTIFIER_ESCAPES)' -> 'cls._IDENTIFIER_ESCAPES = cls.IDENTIFIER_ESCAPES'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lrv3": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:3667 'result = exp.replace_placeholders(self.MINHASH_TEMPLATE.copy(), expr=expr, k=k)' -> 'result = exp.replace_placeholders(self.MINHASH_TEMPLATE, expr=expr, k=k)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lsf7": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/transforms.py:268 'expression.select(select_candidate.copy(), copy=False)' -> 'expression.select(select_candidate, copy=False)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lt88": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/schema.py:377 '\"udf_mapping\": self.udf_mapping.copy(),' -> '\"udf_mapping\": self.udf_mapping,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "ltgd": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/expressions/core.py:2111 'unit=self.unit.copy() if self.unit else None,' -> 'unit=self.unit if self.unit else None,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "ltuv": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/schema.py:374 '\"visible\": self.visible.copy(),' -> '\"visible\": self.visible,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lv23": {
+  "kind": "container_copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/tokens.py:106 'cls._STRING_ESCAPES = set(cls.STRING_ESCAPES)' -> 'cls._STRING_ESCAPES = cls.STRING_ESCAPES'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lv8a": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:702 'return exp.replace_placeholders(_SEQ_SIGNED.copy(), base=base, max_val=max_val, half=half)' -> 'return exp.replace_placeholders(_SEQ_SIGNED, base=base, max_val=max_val, half=half)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lv8s": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:5009 'self.STRTOK_TO_ARRAY_TEMPLATE.copy(),' -> 'self.STRTOK_TO_ARRAY_TEMPLATE,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lvt6": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/parsers/starrocks.py:182 'to_map = self.expression(exp.ToMap(this=struct.copy()))' -> 'to_map = self.expression(exp.ToMap(this=struct))'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lvwc": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/optimizer/qualify_tables.py:65 'table.set(\"db\", db.copy())' -> 'table.set(\"db\", db)'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lw2n": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/duckdb.py:5128 'self.UUID_V5_TEMPLATE.copy(),' -> 'self.UUID_V5_TEMPLATE,'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lw5r": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/optimizer/qualify_columns.py:1145 'exp.Dot(this=operand.copy(), expression=field.this.copy()),' -> 'exp.Dot(this=operand.copy(), expression=field.this),'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lwgn": {
+  "kind": "copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generators/exasol.py:44 'return dialect.normalize_identifier(ident.copy()).this' -> 'return dialect.normalize_identifier(ident).this'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lwr9": {
+  "kind": "container_copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/planner.py:157 'step.aggregations = list(aggregations)' -> 'step.aggregations = aggregations'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lwt6": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/generators/duckdb.py:4976 'exp.Lambda(this=exp.not_(is_empty.copy()), expressions=[x.copy()]),' -> 'exp.Lambda(this=exp.not_(is_empty), expressions=[x.copy()]),'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lxx4": {
+  "kind": "copy_removed",
+  "shared": false,
+  "desc": [
+   "sqlglot/optimizer/unnest_subqueries.py:465 'else array_keys[0].copy()' -> 'else array_keys[0]'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ },
+ "lyd3": {
+  "kind": "container_copy_removed",
+  "shared": true,
+  "desc": [
+   "sqlglot/generator.py:77 'dispatch: dict[type[exp.Expr], t.Callable[..., str]] = dict(cls.TRANSFORMS)' -> 'dispatch: dict[type[exp.Expr], t.Callable[..., str]] = cls.TRANSFORMS'"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "gen_leaks.py copy/alias removals (70% on shared objects)"
+ }
+}

@@ -1,0 +1,13 @@
+diff --git a/sqlglot/planner.py b/sqlglot/planner.py
+index 0000000..1111111 100644
+--- a/sqlglot/planner.py
++++ b/sqlglot/planner.py
+@@ -154,7 +154,7 @@
+ 
+         def set_ops_and_aggs(step) -> None:
+             step.operands = tuple(alias(operand, alias_) for operand, alias_ in operands.items())
+-            step.aggregations = list(aggregations)
++            step.aggregations = aggregations
+ 
+         for e in expression.expressions:
+             if find_in_scope(e, exp.AggFunc):

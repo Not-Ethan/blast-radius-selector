@@ -1,0 +1,13 @@
+diff --git a/sqlglot/schema.py b/sqlglot/schema.py
+index 0000000..1111111 100644
+--- a/sqlglot/schema.py
++++ b/sqlglot/schema.py
+@@ -377,7 +377,7 @@
+             "udf_mapping": self.udf_mapping.copy(),
+             **kwargs,
+         }
+-        return MappingSchema(self.mapping.copy() if schema is None else schema, **mapping_kwargs)
++        return MappingSchema(self.mapping if schema is None else schema, **mapping_kwargs)
+ 
+     def add_table(
+         self,

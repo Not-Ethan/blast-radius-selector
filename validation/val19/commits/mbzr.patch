@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/core.py
++++ b/sqlglot/expressions/core.py
+@@ -3167,7 +3167,7 @@
+     Returns:
+         The new Column instance.
+     """
+-    col = maybe_copy(col, copy) if isinstance(col, Expr) else to_identifier(col, quoted=quoted)
++    col = maybe_copy(col, (not copy)) if isinstance(col, Expr) else to_identifier(col, quoted=quoted)
+ 
+     this: Column | Dot = Column(
+         this=col,

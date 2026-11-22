@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -2088,7 +2088,7 @@
+     MAPCAT_TEMPLATE: t.ClassVar[exp.Expr] = exp.maybe_parse(
+         """
+         CASE
+-            WHEN :map1 IS NULL OR :map2 IS NULL THEN NULL
++            WHEN :map1 IS NULL OR :map2 IS NULL THEN 0
+             ELSE MAP_FROM_ENTRIES(LIST_FILTER(LIST_TRANSFORM(
+                 LIST_DISTINCT(LIST_CONCAT(MAP_KEYS(:map1), MAP_KEYS(:map2))),
+                 __k -> STRUCT_PACK(key := __k, value := COALESCE(:map2[__k], :map1[__k]))

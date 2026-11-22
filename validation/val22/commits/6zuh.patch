@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/ddl.py b/sqlglot/expressions/ddl.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/ddl.py
++++ b/sqlglot/expressions/ddl.py
+@@ -243,8 +243,6 @@
+     arg_types = {"this": True, "expressions": False, "is_table": False}
+ 
+ 
+-class CharacterSet(Expression):
+-    arg_types = {"this": True, "default": False}
+ 
+ 
+ class AlterColumn(Expression):

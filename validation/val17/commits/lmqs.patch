@@ -1,0 +1,13 @@
+diff --git a/sqlglot/dialects/dialect.py b/sqlglot/dialects/dialect.py
+index 0000000..1111111 100644
+--- a/sqlglot/dialects/dialect.py
++++ b/sqlglot/dialects/dialect.py
+@@ -2849,7 +2849,7 @@
+                     exp.GT(this=start.copy(), expression=end.copy()),
+                 ),
+                 exp.and_(
+-                    exp.LT(this=step_value.copy(), expression=zero.copy()),
++                    exp.LT(this=step_value, expression=zero.copy()),
+                     exp.LT(this=start.copy(), expression=end.copy()),
+                 ),
+             )

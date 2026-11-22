@@ -1,0 +1,31 @@
+diff --git a/sqlglot/parsers/tsql.py b/sqlglot/parsers/tsql.py
+index 0000000..1111111 100644
+--- a/sqlglot/parsers/tsql.py
++++ b/sqlglot/parsers/tsql.py
+@@ -352,7 +352,7 @@
+ 
+     QUERY_MODIFIER_PARSERS = {
+         **parser.Parser.QUERY_MODIFIER_PARSERS,
+-        TokenType.OPTION: lambda self: ("options", self._parse_options()),
++        TokenType.OPTION: lambda self: ("options", self._parse_options_renamed()),
+         TokenType.FOR: lambda self: ("for_", self._parse_for()),
+     }
+ 
+@@ -535,7 +535,7 @@
+ 
+         return self._parse_function() or self._parse_types()
+ 
+-    def _parse_options(self) -> list[exp.Expr] | None:
++    def _parse_options_renamed(self) -> list[exp.Expr] | None:
+         if not self._match(TokenType.OPTION):
+             return None
+ 
+@@ -851,7 +851,7 @@
+ 
+     def _parse_update(self) -> exp.Update:
+         expression = super()._parse_update()
+-        expression.set("options", self._parse_options())
++        expression.set("options", self._parse_options_renamed())
+         return expression
+ 
+     def _parse_partition(self) -> exp.Partition | None:

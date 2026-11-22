@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/scope.py b/sqlglot/optimizer/scope.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/scope.py
++++ b/sqlglot/optimizer/scope.py
+@@ -37,7 +37,7 @@
+ )
+ 
+ 
+-class ScopeType(Enum):
++class ScopeType(object):
+     ROOT = auto()
+     SUBQUERY = auto()
+     DERIVED_TABLE = auto()

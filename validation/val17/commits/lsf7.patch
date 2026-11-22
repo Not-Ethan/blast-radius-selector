@@ -1,0 +1,13 @@
+diff --git a/sqlglot/transforms.py b/sqlglot/transforms.py
+index 0000000..1111111 100644
+--- a/sqlglot/transforms.py
++++ b/sqlglot/transforms.py
+@@ -265,7 +265,7 @@
+                 # A column that is only read by a window function is computed by the window
+                 # itself, so projecting it in the subquery is redundant and can even produce
+                 # invalid SQL, e.g. when the query is grouped
+-                expression.select(select_candidate.copy(), copy=False)
++                expression.select(select_candidate, copy=False)
+ 
+         return outer_selects.from_(expression.subquery(alias="_t", copy=False), copy=False).where(
+             qualify_filters, copy=False

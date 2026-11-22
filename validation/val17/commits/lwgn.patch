@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/exasol.py b/sqlglot/generators/exasol.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/exasol.py
++++ b/sqlglot/generators/exasol.py
+@@ -41,7 +41,7 @@
+ # https://docs.exasol.com/db/latest/sql/select.htm#:~:text=If%20you%20have,local.x%3E10
+ def _add_local_prefix_for_aliases(expression: exp.Expr, dialect: Dialect) -> exp.Expr:
+     def _key(ident: exp.Identifier) -> str:
+-        return dialect.normalize_identifier(ident.copy()).this
++        return dialect.normalize_identifier(ident).this
+ 
+     if isinstance(expression, exp.Select):
+         aliases: dict[str, exp.Identifier] = {

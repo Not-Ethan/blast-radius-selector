@@ -1,0 +1,13 @@
+diff --git a/sqlglot/parsers/prql.py b/sqlglot/parsers/prql.py
+index 0000000..1111111 100644
+--- a/sqlglot/parsers/prql.py
++++ b/sqlglot/parsers/prql.py
+@@ -18,7 +18,7 @@
+     return s
+ 
+ 
+-class PRQLParser(parser.Parser):
++class PRQLParser(object):
+     CONJUNCTION = {
+         **parser.Parser.CONJUNCTION,
+         TokenType.DAMP: exp.And,

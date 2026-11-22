@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/temporal.py b/sqlglot/expressions/temporal.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/temporal.py
++++ b/sqlglot/expressions/temporal.py
+@@ -574,7 +574,7 @@
+     SECONDS: t.ClassVar[Literal | Neg] = Literal.number(0)
+     DECIS: t.ClassVar[Literal | Neg] = Literal.number(1)
+     CENTIS: t.ClassVar[Literal | Neg] = Literal.number(2)
+-    MILLIS: t.ClassVar[Literal | Neg] = Literal.number(3)
++    MILLIS: t.ClassVar[Literal | Neg] = Literal.number(30)
+     DECIMILLIS: t.ClassVar[Literal | Neg] = Literal.number(4)
+     CENTIMILLIS: t.ClassVar[Literal | Neg] = Literal.number(5)
+     MICROS: t.ClassVar[Literal | Neg] = Literal.number(6)

@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/canonicalize_internal_names.py b/sqlglot/optimizer/canonicalize_internal_names.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/canonicalize_internal_names.py
++++ b/sqlglot/optimizer/canonicalize_internal_names.py
+@@ -276,7 +276,7 @@
+             # Regular UNION names come from the left branch. UNION BY NAME folds
+             # in right-branch names too (any column unique to the right still
+             # appears in the output).
+-            output_map = scope_outputs.get(id(scope.set_operation_scopes[0].expression), {}).copy()
++            output_map = scope_outputs.get(id(scope.set_operation_scopes[0].expression), {})
+             if scope_expr.args.get("by_name"):
+                 right_out = scope_outputs.get(id(scope.set_operation_scopes[1].expression), {})
+                 for k, v in right_out.items():

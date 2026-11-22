@@ -1,0 +1,40 @@
+diff --git a/sqlglot/optimizer/optimize_joins.py b/sqlglot/optimizer/optimize_joins.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/optimize_joins.py
++++ b/sqlglot/optimizer/optimize_joins.py
+@@ -27,7 +27,7 @@
+         cross_joins: list[tuple[str, exp.Join]] = []
+ 
+         for join in joins:
+-            tables = other_table_names(join)
++            tables = other_table_names_renamed(join)
+ 
+             if tables:
+                 for table in tables:
+@@ -46,7 +46,7 @@
+ 
+                 # Only conjuncts can be extracted, i.e. `a OR b` is not `b AND (a OR TRUE)`
+                 if isinstance(on, exp.And):
+-                    if len(other_table_names(dep)) < 2:
++                    if len(other_table_names_renamed(dep)) < 2:
+                         continue
+ 
+                     for predicate in on.flatten():
+@@ -76,7 +76,7 @@
+             continue
+ 
+         joins_by_name = {join.alias_or_name: join for join in joins}
+-        dag = {name: other_table_names(join) for name, join in joins_by_name.items()}
++        dag = {name: other_table_names_renamed(join) for name, join in joins_by_name.items()}
+         parent.set(
+             "joins",
+             [
+@@ -119,7 +119,7 @@
+     return expression
+ 
+ 
+-def other_table_names(join: exp.Join) -> set[str]:
++def other_table_names_renamed(join: exp.Join) -> set[str]:
+     on = join.args.get("on")
+     return exp.column_table_names(on, join.alias_or_name) if on else set()
+ 

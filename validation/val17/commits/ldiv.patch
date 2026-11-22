@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -1528,7 +1528,7 @@
+     return self.sql(
+         exp.or_(
+             exp.paren(exp.and_(left.copy(), exp.paren(right.not_()), wrap=False)),
+-            exp.paren(exp.and_(exp.paren(left.not_()), right.copy(), wrap=False)),
++            exp.paren(exp.and_(exp.paren(left.not_()), right, wrap=False)),
+             wrap=False,
+         )
+     )

@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -4983,7 +4983,7 @@
+ 
+             # Use template with the built regex pattern
+             result = exp.replace_placeholders(
+-                self.STRTOK_TEMPLATE.copy(),
++                self.STRTOK_TEMPLATE,
+                 string=string_arg,
+                 delimiter=delimiter_arg,
+                 part_index=part_index_arg,

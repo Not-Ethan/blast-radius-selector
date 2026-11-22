@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -4068,7 +4068,7 @@
+ 
+     def mapcat_sql(self, expression: exp.MapCat) -> str:
+         result = exp.replace_placeholders(
+-            self.MAPCAT_TEMPLATE.copy(),
++            self.MAPCAT_TEMPLATE,
+             map1=expression.this,
+             map2=expression.expression,
+         )

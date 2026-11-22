@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/core.py b/sqlglot/expressions/core.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/core.py
++++ b/sqlglot/expressions/core.py
+@@ -2857,7 +2857,7 @@
+     set_operation: Type,
+     distinct: bool = True,
+     dialect: DialectType = None,
+-    copy: bool = True,
++    copy: bool = False,
+     **opts: Unpack[ParserNoDialectArgs],
+ ) -> t.Any:
+     return reduce(

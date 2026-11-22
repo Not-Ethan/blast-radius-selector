@@ -1,0 +1,13 @@
+diff --git a/sqlglot/expressions/builders.py b/sqlglot/expressions/builders.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/builders.py
++++ b/sqlglot/expressions/builders.py
+@@ -1022,7 +1022,7 @@
+     dialect = Dialect.get_or_raise(dialect)
+ 
+     converted: list[Expr] = [maybe_parse(arg, dialect=dialect, copy=copy) for arg in args]
+-    kwargs = {key: maybe_parse(value, dialect=dialect, copy=copy) for key, value in kwargs.items()}
++    kwargs = {key: maybe_parse(value, dialect=dialect, copy=(not copy)) for key, value in kwargs.items()}
+ 
+     constructor = dialect.parser_class.FUNCTIONS.get(name.upper())
+     if constructor:

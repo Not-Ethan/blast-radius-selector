@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/normalize.py b/sqlglot/optimizer/normalize.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/normalize.py
++++ b/sqlglot/optimizer/normalize.py
+@@ -36,7 +36,7 @@
+             if normalized(node, dnf=dnf):
+                 continue
+             root = node is expression
+-            original = node.copy()
++            original = node
+ 
+             node.transform(simplifier.rewrite_between, copy=False)
+             distance = normalization_distance(node, dnf=dnf, max_=max_distance)

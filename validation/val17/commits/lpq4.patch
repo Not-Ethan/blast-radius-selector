@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -3674,7 +3674,7 @@
+ 
+     def approximatesimilarity_sql(self, expression: exp.ApproximateSimilarity) -> str:
+         expr = expression.this
+-        result = exp.replace_placeholders(self.APPROXIMATE_SIMILARITY_TEMPLATE.copy(), expr=expr)
++        result = exp.replace_placeholders(self.APPROXIMATE_SIMILARITY_TEMPLATE, expr=expr)
+         return f"({self.sql(result)})"
+ 
+     def arrayall_sql(self, expression: exp.ArrayAll) -> str:

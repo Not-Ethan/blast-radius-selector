@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -4973,7 +4973,7 @@
+             filtered_array = exp.func(
+                 "LIST_FILTER",
+                 split_array,
+-                exp.Lambda(this=exp.not_(is_empty.copy()), expressions=[x.copy()]),
++                exp.Lambda(this=exp.not_(is_empty), expressions=[x.copy()]),
+             )
+             base_func = exp.Bracket(
+                 this=filtered_array,

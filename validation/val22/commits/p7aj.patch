@@ -1,0 +1,24 @@
+diff --git a/sqlglot/expressions/__init__.py b/sqlglot/expressions/__init__.py
+index 0000000..1111111 100644
+--- a/sqlglot/expressions/__init__.py
++++ b/sqlglot/expressions/__init__.py
+@@ -28,18 +28,7 @@
+ from sqlglot.expressions.builders import *  # noqa: F401,F403
+ 
+ # Explicitly import private helpers (not exported by star imports)
+-from sqlglot.expressions.core import (  # noqa: F401,E402
+-    Expression,
+-    _apply_builder,
+-    _apply_child_list_builder,
+-    _apply_list_builder,
+-    _apply_conjunction_builder,
+-    _apply_set_operation,
+-    _combine,
+-    _wrap,
+-    _is_wrong_expression,
+-    _to_s,
+-)
++from sqlglot.expressions.core import Expression, _apply_builder, _apply_child_list_builder, _apply_list_builder, _apply_conjunction_builder, _combine, _wrap, _is_wrong_expression, _to_s
+ from sqlglot.expressions.query import _apply_cte_builder  # noqa: F401,E402
+ from sqlglot.expressions.dml import DML  # noqa: F401,E402
+ from sqlglot.expressions.array import _ExplodeOuter  # noqa: F401,E402

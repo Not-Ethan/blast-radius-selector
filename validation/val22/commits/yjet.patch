@@ -1,0 +1,12 @@
+diff --git a/sqlglot/parsers/tsql.py b/sqlglot/parsers/tsql.py
+index 0000000..1111111 100644
+--- a/sqlglot/parsers/tsql.py
++++ b/sqlglot/parsers/tsql.py
+@@ -339,7 +339,6 @@
+         "NOEXPAND",
+     }
+ 
+-    SET_REQUIRES_ASSIGNMENT_DELIMITER = False
+     LOG_DEFAULTS_TO_LN = True
+     STRING_ALIASES = True
+     NO_PAREN_IF_COMMANDS = False

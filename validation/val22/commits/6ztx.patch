@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/clickhouse.py b/sqlglot/generators/clickhouse.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/clickhouse.py
++++ b/sqlglot/generators/clickhouse.py
+@@ -178,7 +178,7 @@
+     return f"{this}.:{to_sql}"
+ 
+ 
+-class ClickHouseGenerator(generator.Generator):
++class ClickHouseGeneratorRenamed(generator.Generator):
+     BYTE_STRING_FUNCTION = "unhex"
+     SELECT_KINDS = ()
+     TRY_SUPPORTED = False

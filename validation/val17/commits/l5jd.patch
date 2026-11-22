@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -3407,7 +3407,7 @@
+         def text_arg(value: exp.Expr) -> exp.Expr:
+             if expression.args.get("null_terminated"):
+                 return exp.SplitPart(
+-                    this=value.copy(),
++                    this=value,
+                     delimiter=exp.Chr(expressions=[exp.Literal.number(0)]),
+                     part_index=exp.Literal.number(1),
+                 )

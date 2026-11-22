@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/qualify_tables.py b/sqlglot/optimizer/qualify_tables.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/qualify_tables.py
++++ b/sqlglot/optimizer/qualify_tables.py
+@@ -244,7 +244,7 @@
+                     for p in exp.COLUMN_PARTS[1:]:
+                         column.set(p, None)
+ 
+-                    column.set("table", table_alias.copy())
++                    column.set("table", table_alias)
+             elif (
+                 canonical_aliases
+                 and column_table

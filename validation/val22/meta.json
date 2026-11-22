@@ -1,0 +1,299 @@
+{
+ "2can": {
+  "kind": "class_attr_delete",
+  "desc": [
+   "sqlglot/parsers/base.py: delete BaseParser attribute `TABLE_ALIAS_TOKENS = parser.Parser.TABLE_ALIAS_TOKENS - {Tok`"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "2mvc": {
+  "kind": "class_delete",
+  "desc": [
+   "sqlglot/generators/redshift.py: delete class RedshiftGenerator"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "3at9": {
+  "kind": "class_delete",
+  "desc": [
+   "sqlglot/generators/postgres.py: delete class PostgresGenerator"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "3ibi": {
+  "kind": "property_to_method",
+  "desc": [
+   "sqlglot/planner.py: Step.type_name is no longer a property"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "5wni": {
+  "kind": "global_delete",
+  "desc": [
+   "sqlglot/lineage.py: delete module-level `logger = logging.getLogger('sqlglot')`"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "62uh": {
+  "kind": "class_base_change",
+  "desc": [
+   "sqlglot/parsers/prql.py: class PRQLParser base parser.Parser -> object"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "647c": {
+  "kind": "func_rename_everywhere",
+  "desc": [
+   "sqlglot/optimizer/optimize_joins.py: rename other_table_names -> other_table_names_renamed and every reference in sqlglot/ (1 files)"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "6xyd": {
+  "kind": "multi",
+  "desc": [
+   "tests/dialects/test_dremio.py: TestDremio gains test_added_by_patch (fail)",
+   "sqlglot/optimizer/pushdown_projections.py: prune_projections default True -> False"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "6ztx": {
+  "kind": "class_rename",
+  "desc": [
+   "sqlglot/generators/clickhouse.py: rename class ClickHouseGenerator (uses unchanged)"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "6zuh": {
+  "kind": "class_delete",
+  "desc": [
+   "sqlglot/expressions/ddl.py: delete class CharacterSet"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "7ajk": {
+  "kind": "global_delete",
+  "desc": [
+   "sqlglot/parsers/tsql.py: delete module-level `OPTIONS: parser.OPTIONS_TYPE = {**dict.fromkeys(('DISABLE_OP`"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "8iw6": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/__init__.py: no longer re-exports TokenType (from sqlglot.tokens)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "9vnu": {
+  "kind": "class_base_change",
+  "desc": [
+   "sqlglot/parsers/teradata.py: class TeradataParser base parser.Parser -> object"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "b6ur": {
+  "kind": "class_base_change",
+  "desc": [
+   "sqlglot/expressions/functions.py: class CurrentCatalog drops base Expression"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "cv8m": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/executor/__init__.py: no longer re-exports nested_set (from sqlglot.schema)"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "d48s": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/expressions/__init__.py: no longer re-exports _apply_conjunction_builder (from sqlglot.expressions.core)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "e3wv": {
+  "kind": "property_to_method",
+  "desc": [
+   "sqlglot/expressions/datatypes.py: DataTypeParam.name is no longer a property"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "eiqy": {
+  "kind": "class_base_change",
+  "desc": [
+   "sqlglot/optimizer/pushdown_projections.py: class ProjectionReachability base t.NamedTuple -> object"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "ev9w": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/__init__.py: no longer re-exports ParseError (from sqlglot.errors)"
+  ],
+  "labeller": "pytest subset",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "ewyz": {
+  "kind": "class_delete",
+  "desc": [
+   "sqlglot/expressions/core.py: delete class Pos"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "f2ab": {
+  "kind": "class_base_change",
+  "desc": [
+   "sqlglot/generators/risingwave.py: class RisingWaveGenerator base PostgresGenerator -> object"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "fhdc": {
+  "kind": "class_attr_delete",
+  "desc": [
+   "sqlglot/expressions/temporal.py: delete UnixToTime attribute `DECIMILLIS: t.ClassVar[Literal | Neg] = Literal.number(4)`"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "futv": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/__init__.py: no longer re-exports TokenError (from sqlglot.errors)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "gpvi": {
+  "kind": "global_delete",
+  "desc": [
+   "sqlglot/generators/postgres.py: delete module-level `DATE_DIFF_BOUNDARY_UNITS = {'MICROSECOND', 'MILLISECOND', 'S`"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "jjaa": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/__init__.py: no longer re-exports Token (from sqlglot.tokens)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "k833": {
+  "kind": "class_rename",
+  "desc": [
+   "sqlglot/dialects/athena.py: rename class Athena (uses unchanged)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "kf7e": {
+  "kind": "property_to_method",
+  "desc": [
+   "sqlglot/expressions/aggregate.py: Agg.output_name is no longer a property"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "p2f2": {
+  "kind": "raise_change",
+  "desc": [
+   "sqlglot/optimizer/resolver.py:211 raise OptimizeError -> RuntimeError"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "p7aj": {
+  "kind": "init_reexport",
+  "desc": [
+   "sqlglot/expressions/__init__.py: no longer re-exports _apply_set_operation (from sqlglot.expressions.core)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "takh": {
+  "kind": "func_rename_everywhere",
+  "desc": [
+   "sqlglot/parsers/tsql.py: rename TSQLParser._parse_options -> _parse_options_renamed and every reference in sqlglot/ (1 files)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "tbie": {
+  "kind": "class_base_change",
+  "desc": [
+   "sqlglot/generators/sqlite.py: class SQLiteGenerator base generator.Generator -> object"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "tu3x": {
+  "kind": "func_rename_everywhere",
+  "desc": [
+   "sqlglot/typing/bigquery.py: rename _annotate_int_pair_as_double -> _annotate_int_pair_as_double_renamed and every reference in sqlglot/ (1 files)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "u5pj": {
+  "kind": "class_attr_delete",
+  "desc": [
+   "sqlglot/parsers/databricks.py: delete DatabricksParser attribute `NO_PAREN_FUNCTION_PARSERS = {**SparkParser.NO_PAREN_FUNCTION`"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "xgax": {
+  "kind": "class_delete",
+  "desc": [
+   "sqlglot/dialects/spark.py: delete class Spark"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "yatn": {
+  "kind": "class_base_change",
+  "desc": [
+   "sqlglot/optimizer/scope.py: class ScopeType base Enum -> object"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "yjet": {
+  "kind": "class_attr_delete",
+  "desc": [
+   "sqlglot/parsers/tsql.py: delete TSQLParser attribute `SET_REQUIRES_ASSIGNMENT_DELIMITER = False`"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ },
+ "z6ga": {
+  "kind": "class_rename",
+  "desc": [
+   "sqlglot/generators/drill.py: rename class DrillGenerator (uses unchanged)"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "new kinds: class/attr deletes, renames, base changes, property->method, raise changes, re-exports"
+ }
+}

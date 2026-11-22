@@ -1,0 +1,13 @@
+diff --git a/sqlglot/generators/duckdb.py b/sqlglot/generators/duckdb.py
+index 0000000..1111111 100644
+--- a/sqlglot/generators/duckdb.py
++++ b/sqlglot/generators/duckdb.py
+@@ -3376,7 +3376,7 @@
+             func.set(
+                 "this",
+                 exp.Order(
+-                    this=func.this.copy(),
++                    this=func.this,
+                     expressions=order.expressions,
+                 ),
+             )

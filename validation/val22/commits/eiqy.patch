@@ -1,0 +1,13 @@
+diff --git a/sqlglot/optimizer/pushdown_projections.py b/sqlglot/optimizer/pushdown_projections.py
+index 0000000..1111111 100644
+--- a/sqlglot/optimizer/pushdown_projections.py
++++ b/sqlglot/optimizer/pushdown_projections.py
+@@ -44,7 +44,7 @@
+ GROUPING_CONSTRUCTS = (exp.Cube, exp.GroupingSets, exp.Paren, exp.Rollup, exp.Tuple)
+ 
+ 
+-class ProjectionReachability(t.NamedTuple):
++class ProjectionReachability(object):
+     """Which root outputs reach each scope and output column through dependency edges.
+ 
+     Reachability is stored as integer bitsets: bit i represents root output i.

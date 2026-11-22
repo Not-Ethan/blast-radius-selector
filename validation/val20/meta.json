@@ -1,0 +1,42 @@
+{
+ "s001": {
+  "kind": "class_expr_constant",
+  "desc": [
+   "UnixToTime.MILLIS 3 -> 30"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "class-level expression constants and templates"
+ },
+ "s002": {
+  "kind": "class_expr_constant",
+  "desc": [
+   "UnixToTime.SECONDS 0 -> 1"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "class-level expression constants and templates"
+ },
+ "s003": {
+  "kind": "class_expr_constant",
+  "desc": [
+   "UnixToTime.MICROS 6 -> 16"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "class-level expression constants and templates"
+ },
+ "s004": {
+  "kind": "class_expr_constant",
+  "desc": [
+   "DuckDBGenerator.MAPCAT_TEMPLATE NULL -> 0"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "class-level expression constants and templates"
+ },
+ "s005": {
+  "kind": "class_expr_constant",
+  "desc": [
+   "DuckDBGenerator.MINHASH_TEMPLATE minhash -> minhash2"
+  ],
+  "labeller": "pytest full suite, one process",
+  "set": "class-level expression constants and templates"
+ }
+}
