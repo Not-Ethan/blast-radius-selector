@@ -19,8 +19,8 @@
 > simulated equal to M24 on the sample, val2, val6 and every val set except val9 233.3
 > (-1.8) and val1 1073.2 (-4.5); kit-sample CPU equal to M23/M24 within noise; costly only on
 > copy edits in core code (leaks2 +167 s over 23 adversarial commits). Docker checks: see
-> the M25 section. If M25's real score matches M24's with 0 missed, M25 should become the
-> final entry.
+> the M25 section (exact tree 4c85b5e: valid, 0 misses, 121.616 s emulated). If M25's real
+> score matches M24's with 0 missed, M25 should become the final entry.
 >
 > Previous final entry: M23 (071cab9, public e88ad91), practice 151.6 s (132.679 simulated +
 > 18.86-18.92 CPU), 0 missed; 41st of 344 at the time (1st 114.6, 10th 128.3, 30th 143.2).
@@ -1000,7 +1000,11 @@ commits, both checked cheaply). Kit-sample CPU, interleaved native runs with the
 fingerprints precomputed as in the image (round 1 discarded): M23 10.51 / 10.72, M24 10.52 /
 10.61, M25 10.69 s; simulated 96.8 for all three.
 
-Docker checks: a362bd0 on the kit sample valid, 0 misses, 121.616 s emulated (build 463 s);
+Docker check on the exact candidate tree (4c85b5e, `git archive`, `--no-cache`, amd64): kit
+sample valid, 0 misses, 121.616 s emulated (as M23/M24), wall 131 s; from-scratch build 2051 s
+under very heavy load (a first run took 610 s wall because the host was saturated by other jobs:
+the selector itself stopped at its own 126 s budget, the rest was container start-up).
+Earlier image a362bd0: kit sample valid, 0 misses, 121.616 s emulated (build 463 s);
 the same image on 7 flagged commits (c001-c004, gjrx, b4b5, ic58): valid, 0 misses, the
 state check ran inside the container (read-only disk, user nobody, 64 MB /tmp) with child
 RSS 250-370 MB; gjrx's check was killed by the emulated budget and fell back to every test
