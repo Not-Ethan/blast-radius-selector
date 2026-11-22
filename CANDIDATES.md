@@ -1,29 +1,29 @@
 
 # Candidate submissions (branch br-opt)
 
-> **Final entry if the cutoff were now: M24 (ffad41e)** — not yet scored, but it fixes two
-> real miss classes present in M23 (see the M24 section): the state fingerprints could not see
-> sqlglot expressions (UnixToTime.MILLIS 3 -> 30: 2 failing tests, M17-M23 select none), and a
-> renamed module-level class was narrowed by name mentions (kinds3 k833: 1 of 127 left out).
-> Every set: 0 misses; simulated equal to M23 everywhere except val1 +4.5 (a moved
-> `__firstlineno__` makes one comparison fall back). Docker check on the exact tree (`git
-> archive ffad41e:blast-radius`, `--no-cache`, amd64): valid, 0 misses, simulated 121.616 s
-> (as M23's emulated check; the light-probe second round of 66ks was killed by emulation
-> slowness), the state comparison narrowed gbav in the container. From-scratch build 2290 s
-> locally under very heavy load (emulated; M24's first image 1797 s; M22 195 s on a quiet machine).
-> Expect M23's CPU. If no real score arrives, M23 (151.6 s, 0 missed) is the scored fallback
-> but carries both miss classes.
+> **Final entry if the cutoff were now: M25 (4c85b5e)** — practice **161.1 s (132.333
+> simulated + 27.87-28.83 CPU), 0 missed**; covers the most (M24's two fixes plus the
+> state-leak guard). Fallback: M24 (ffad41e), practice 159.9 s (140.205 + 19.64-19.75), 0
+> missed. M23 (151.6) carries two real miss classes.
 >
-> **Recommended next: M24 (ffad41e), then M25 (4c85b5e).** M25 = M24 + the state-leak guard
-> (closes leakctl c004: 10 victims that pass alone, missed by M23/M24). Every set 0 misses;
-> simulated equal to M24 on the sample, val2, val6 and every val set except val9 233.3
-> (-1.8) and val1 1073.2 (-4.5); kit-sample CPU equal to M23/M24 within noise; costly only on
-> copy edits in core code (leaks2 +167 s over 23 adversarial commits). Docker checks: see
-> the M25 section (exact tree 4c85b5e: valid, 0 misses, 121.616 s emulated). If M25's real
-> score matches M24's with 0 missed, M25 should become the final entry.
+> Reading the two scores: M24's simulated is back at M22's 140.205 because its new
+> dunder fallback fired on `__firstlineno__` (Python 3.13 class metadata that moves when lines
+> above a class move), undoing the state-comparison narrowing; M25 exempts it (132.333, as
+> M23). M25's CPU is about 8.5 s above M24's: locally the only plan difference between them
+> on the official-style sets is the state check on copy-default flips (val9 gjrx: 125
+> candidates run whole, +8.9 s local CPU, -1.8 s simulated), so the practice batch very
+> likely has such a commit.
 >
-> Previous final entry: M23 (071cab9, public e88ad91), practice 151.6 s (132.679 simulated +
-> 18.86-18.92 CPU), 0 missed; 41st of 344 at the time (1st 114.6, 10th 128.3, 30th 143.2).
+> **Recommended next: M27 (6e4195b)** = M25 + M26 (nested dicts fingerprinted in order,
+> `except ... as e` names are locals) + the state check for copy-only edits only while cheap
+> (<= 3 s local CPU; otherwise planned as M24) + unbound names in an edited body are
+> NameErrors, not shared writes + `self.<class-level name>` writes count as shared. Every set
+> 0 missed; simulated = M25 everywhere except copy edits planned as M24 (val9 235.1, val17
+> 251.4, val19 345.7, val22 673.9). val9 CPU, 3 interleaved rounds: M24 21.4-22.0, M25
+> 30.4-31.3, M27 20.5-21.9 s (M25's excess is gjrx's 125-test check, 9-10 s). Docker check on
+> the exact tree: kit sample valid, 0 misses, 121.616 s, 132 s wall, build 494 s; 7 flagged
+> commits valid, 0 misses. Expected on practice: about M25's simulated (132.3) at about
+> M24's CPU (19.7), i.e. about 152 s.
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
@@ -1013,3 +1013,114 @@ RSS 250-370 MB; gjrx's check was killed by the emulated budget and fell back to 
 Not covered (README "Known risks"): an edit that leaks state without matching a trigger
 (e.g. passing a different shared object to a function that mutates its argument, no copy
 involved), and damage that a later candidate repairs before the check (transient).
+
+## Soundness hunt after M25 ("the mechanism looked at the wrong thing")
+
+* **(a) Blind fingerprints.** Audited `keyrec.fp` case by case. Fixed in M24: expressions
+  (slots), enum values. Found and fixed now (M26): nested dicts were fingerprinted as
+  sorted item sets, so an edit that only reorders the entries of a dict held inside another
+  value was invisible (code iterating it sees the order); now in insertion order, with the
+  existing order-insensitive reading for values whose order differs between hash seeds
+  (3 more such values: Databricks/Hive `COERCES_TO`, `TypeAnnotator.BINARY_COERCIONS`; no
+  dict entry value differs between seeds or shifted memory layouts). Checked and fine:
+  function wrappers (`@wraps` decorators such as `unsupported_args("this")(lambda ...)`
+  in duckdb's TRANSFORMS are plain functions whose closure, holding the decorator
+  arguments, is fingerprinted; changing the argument changes the fingerprint), properties
+  (getter/setter/deleter), partials, closures, defaults, frozensets/tuples of classes,
+  0 unreadable holders. NamedTuple fields: probe set val24 (swap two fields, add a field,
+  add a default; full-suite labels: 0 / 109 / 0 failing): M25 0 missed.
+* **(b) Names that feed keys.** Every `__name__`/`__qualname__`/`key` use in sqlglot is a
+  class name (dialect registry, `Expression.key`, `EXPR_CLASSES`, serde, lineage): covered
+  by M24's renamed-class rule. Generator dispatch resolves `<key>_sql` methods by name
+  (`dir(cls)` + `getattr` in `_build_dispatch`, `getattr(self, f"{node.key}_sql")`): those
+  are computed-name readers, so a renamed `*_sql` method keeps every test that built a
+  dispatch. `_sql_names` and `arg_types` keys go through the state comparison / key
+  records. Probe set val23 (3 `*_sql` method renames, `_sql_names` drop, an `arg_types`
+  key rename, plus (c) below; full-suite labels): M25 0 missed.
+* **(c) Test files and helpers.** Function-body edits in tests/helpers.py or a base
+  TestCase method use per-test line coverage, which includes test files (proof); a
+  class attribute of a base TestCase (not a sqlglot class, so no class-usage record) keeps
+  every importer; only test methods changed -> those tests (no test calls or inherits
+  another test method). Probes in val23: `_filter_comments` edit (2 failing, 89
+  selected), `Validator.dialect = "duckdb"` (35 failing, 1020 selected): 0 missed. The
+  hard leak rule also covers 14 test functions that write shared state (setUpClass of
+  the executor/optimizer/lineage tests, dialect patching tests).
+* **(d) Two files, each harmless alone.** Candidates are the union over files of tests
+  that can execute any changed line or observe any changed import-time state; a test
+  that executes no changed line of either file and reads no changed state behaves as at
+  the pinned commit (the same proof as one file), and verification, the import check,
+  the state comparison and the leak check all run on the whole patched tree. Multi-file
+  commits in val1/val2/val9/kinds2/kinds3: 0 missed.
+* Also: `except E as e` names were taken for globals by the leak classifier, so
+  `Parser.parse_into` (`e.errors[0][...] = ...`) counted as a shared-state writer and any
+  edit there would have included every test; fixed in M26 (8 writer functions remain).
+* kinds2 relabelled with one full-suite process: identical labels to the subset labels
+  so far (40 of 47).
+
+## CPU scale experiment (no change)
+
+`BR_CPU_SCALE` 1.0 / 1.3 / 1.6 on M26, simulated seconds (local verification CPU of the
+commits whose plan changed): sample 96.8 / 96.8 / 96.8 (1.6 drops 2jrq's useless 3.8 s
+stage check); val9 263.6 / 265.8 / 266.6 (-5.7 s CPU at 1.3); val6 193.2 / 200.8 / 199.8
+(-9 s CPU); val2 532.8 / 560.4 / 624.5 (-20 / -86 s CPU, loaded machine). At the best
+available scorer/local CPU ratio (about 1.3, from M13: 16.5 s on practice vs 9.7 s local
+on the sample) the sample and val9 gain 2-5 s, val6 breaks even and val2 (uniform file
+choice, many TPC-DS stage checks) loses 10-17 s, so the scale stays 1.0.
+
+## M26 — nested dicts fingerprinted in order, `except ... as e` names are locals (superseded by M27)
+
+Commit **f8f1307** (on M25). See "Soundness hunt after M25" above. Every set identical to
+M25 (simulated and misses). Docker check on the exact tree: kit sample valid, 0 misses,
+121.616 s emulated, 132 s wall (build 369 s); the 7 flagged commits (leakmix): valid, 0
+misses, 188.133 s.
+
+## M27 — M25's coverage at M24's CPU (recommended next; includes M24, M25, M26)
+
+Commit **6e4195b**. Docker check on the exact tree: kit sample valid, 0 misses, 121.616 s
+emulated, 132 s wall, from-scratch build 494 s; leakmix (c001-c004, gjrx, b4b5, ic58) valid, 0
+misses, 159.575 s. Exact-tree validation: every set val1-val24, kinds2 and the kit sample, 0
+misses (val23 129.0, val24 76.4, val21 656.7).
+
+Practice (same batch): M24 159.9 = 140.205 + 19.7 CPU; M25 161.1 = 132.333 + 28.4 CPU.
+* M24's simulated time is M22's 140.205 because M24's new dunder fallback fired on Python
+  3.13's `__firstlineno__` (class metadata that moves whenever lines above a class move)
+  and undid the state-comparison narrowing; M25 exempts it, back to M23's 132.7.
+* M25's extra 8.5 s of CPU: on the official-style sets the only plan difference between
+  M24 and M25 is the state check of a copy-default flip (val9 gjrx: all 125 candidates run
+  in one child, 9.5 s local CPU instead of M24's 0.7 s, simulated -1.8 s). The practice
+  batch very likely has such a commit.
+
+Changes:
+* An edit that only changes copying gets the state check only while it costs <= 3 s local
+  CPU (`BR_LEAK_COPY_MAX_CPU`); otherwise it is planned as in M24. Evidence that this
+  keeps soundness in practice, not proof: none of the 63 labelled copy edits (val17,
+  val19: copy calls and statements removed, copy flags/defaults flipped, `copy` negated,
+  on shared objects and on lines >= 20 tests run; full-suite labels) left a victim outside
+  M23/M24's selection. Edits that write shared state (c001-c004 style) keep the full check.
+* A name neither local, nor bound at module level, nor imported by the function is a
+  NameError, not a shared write (a deleted assignment: val1 ic58 no longer triggers).
+* `self.<name>` is shared when some class in the file binds `<name>` in its body (lowercase
+  class tables: `arg_types`, `_sql_names`). No existing sqlglot function changes class (8
+  writers); no validation commit changes trigger.
+
+| set | M24 | M25 | M27 | misses |
+| --- | ---: | ---: | ---: | ---: |
+| kit sample | 96.8 | 96.8 | 96.8 | 0 |
+| val6 / val2 | 193.2 / 532.8 | 193.2 / 532.8 | 193.2 / 532.8 | 0 |
+| val9 | 235.1 | 233.3 | 235.1 (gjrx planned as M24) | 0 |
+| val1 | 1077.7 | 1073.2 | 1073.2 | 0 |
+| val17 / val19 (copy edits) | 251.4 / 345.7 | 279.0 / 512.9 | 251.4 / 345.7 | 0 |
+| val18 (leak controls) | c004 missed | 147.3 | 147.3 | **0** |
+| val20 / val22 / val23 / kinds2 | 10.5 / 673.9 / - / 656.7 | 10.5 / 668.6 / 129.0 / 656.7 | 10.5 / 673.9 / 129.0 / 656.7 | 0 |
+
+Local CPU on val9 (official-style, 60 commits), 3 interleaved rounds of the exact trees with
+the pinned fingerprints precomputed as in the image, user+sys of the whole run:
+
+| | round 1 | round 2 | round 3 | simulated | gjrx verification |
+| --- | ---: | ---: | ---: | ---: | --- |
+| M24 (ffad41e) | 21.49 | 21.95 | 21.39 | 235.1 (238.8 in round 1: two load timeouts) | 4 tests, 0.66-0.70 s |
+| M25 (4c85b5e) | 30.90 | 31.32 | 30.43 | 233.3 | 125 tests, 8.97-10.00 s |
+| M27 (6e4195b) | 20.52 | 21.93 | 21.79 | 235.1 | 4 tests, 0.60-0.67 s |
+
+M25's +9 s is exactly gjrx's state check, the size of M25's practice excess over M24.
+Expected on practice: M25's simulated (about 132.3) at about M24's CPU (about 19.7).
