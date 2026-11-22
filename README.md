@@ -187,6 +187,14 @@ ones against the patched tree and keep only the ones that fail.**
    tests run in their own group, and only tests whose every restricted fixture is one of
    their own (or one their class loads but they never use) may join it.
 
+   **Executor fixture rows.** The executor tests' class fixture parses every TPC-H and
+   TPC-DS table into Python rows (about 1.4 s); only `test_execute_tpch` reads the TPC-H
+   rows and only `test_execute_tpcds` the TPC-DS rows (the other executor tests build
+   their own tables or query duckdb views that read the files themselves; a stage check
+   stops each case after `optimize()`, which reads the schema only). A verification run
+   that does not run those tests in full gives the fixture header-only CSV readers for
+   the benchmarks it does not need.
+
    **Infection probes.** When every change of a commit is a side-effect-free
    expression inside a function body (a swapped operator, a changed constant, ...),
    the verifier compiles the patched module so that each changed expression evaluates

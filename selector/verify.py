@@ -286,6 +286,62 @@ def _install_probes(overlay: str, probes: dict):
     return current
 
 
+STAGE_LIGHT_FIXTURE = os.environ.get("BR_STAGE_LIGHT_FIXTURE", "1") == "1"
+
+
+class _HeaderOnlyCsv:
+    """Stand-in for the csv module seen by tests/test_executor.py: readers of files under
+    the given benchmark folders yield the header row only (all files when `skip` is None)."""
+
+    def __init__(self, real, skip=None):
+        self._real = real
+        self._skip = skip
+
+    def reader(self, f, *args, **kwargs):
+        rows = self._real.reader(f, *args, **kwargs)
+        name = str(getattr(f, "name", "") or "")
+        if self._skip is not None and not any(part in name for part in self._skip):
+            return rows
+        first = next(rows, None)
+        return iter([] if first is None else [first])
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+# The executor tests' class fixture parses every TPC-H and TPC-DS table into Python rows
+# (about 1.4 s); only test_execute_tpch reads the TPC-H rows and only test_execute_tpcds the
+# TPC-DS rows (the other tests build their own tables or query duckdb views, which read
+# the files themselves). A child that runs neither in full skips those rows.
+_ROW_USERS = {"tpc-h": "tests/test_executor.py::TestExecutor::test_execute_tpch",
+              "tpc-ds": "tests/test_executor.py::TestExecutor::test_execute_tpcds"}
+
+
+def _light_executor_fixture(full_tests):
+    """Install the header-only reader for the benchmarks no test in `full_tests` (tests run
+    in full, not stopped after optimize()) needs; returns an undo function."""
+    if not STAGE_LIGHT_FIXTURE:
+        return lambda: None
+    skip = [folder + "/" for folder, user in _ROW_USERS.items() if user not in full_tests]
+    if not skip:
+        return lambda: None
+    import importlib
+
+    try:
+        module = importlib.import_module("tests.test_executor")
+    except BaseException:  # noqa: BLE001 - run_tests reports it
+        return lambda: None
+    real = getattr(module, "csv", None)
+    if real is None or isinstance(real, _HeaderOnlyCsv):
+        return lambda: None
+    module.csv = _HeaderOnlyCsv(real, skip)
+
+    def undo():
+        module.csv = real
+
+    return undo
+
+
 def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict, check_modules: list[str], out_fd: int, memory_limit: int | None, warm: bool = False, probes: dict | None = None, groups: list | None = None, leak_check: bool = False):
     result = {"failed": [], "import_errors": {}, "durations": {}, "error": None}
     try:
@@ -358,7 +414,12 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
                 cases.ALLOWED.clear()
                 cases.ALLOWED.update({os.path.normpath(f): frozenset(v) for f, v in allowed.items()})
             if spec is None:
-                group_failed, group_durations = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
+                undo = _light_executor_fixture(set(group_tests)) if any(
+                    t.startswith("tests/test_executor.py::") for t in group_tests) else (lambda: None)
+                try:
+                    group_failed, group_durations = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
+                finally:
+                    undo()
             else:
                 # Stage check (selector/stage.py): stop each case after optimize()
                 # and compare fingerprints; the test's own result is not used.
@@ -375,10 +436,16 @@ def _child(overlay: str, root: str, files: dict, tests: list[str], limits: dict,
                 stage.ABORT.update({"by_input": by_input, "ordinal": ordinal, "cost": spec["full"],
                                     "warm": spec["warm"], "cap": spec["cap"]})
                 stage.install(executor)
+                # Every case stops right after optimize(), which reads the schema, never the
+                # table rows, so the class fixture's CSV rows (most of its cost) are not
+                # needed: its csv reader yields the header row only for this run. A re-run
+                # of differing cases is another run, whose fixture loads the real rows.
+                undo = _light_executor_fixture(set())
                 try:
                     _, group_durations = run_tests(group_tests, limit_of=lambda node: limits.get(node, 30.0))
                 finally:
                     stage.uninstall(executor)
+                    undo()
                 differing = stage.differing_cases(spec["cases"], [tuple(o) for o in stage.OBSERVED])
                 cost = spec["warm"] + sum(spec["full"].get(k, spec["cap"] + 1.0) for k in differing)
                 rerun = bool(differing) and cost <= spec["cap"]
