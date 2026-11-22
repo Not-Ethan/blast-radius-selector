@@ -345,6 +345,7 @@ def case_full_costs(maps, node):
 # commit simply includes every test.
 LEAK_CHECK_CPU = float(os.environ.get("BR_LEAK_CHECK_CPU", "1.2"))
 LEAK_MAX_CPU = float(os.environ.get("BR_LEAK_MAX_CPU", "20.0"))
+LEAK_COPY_MAX_CPU = float(os.environ.get("BR_LEAK_COPY_MAX_CPU", "3.0"))  # local s: state check for copy-only edits
 LEAK_RESTRICT = os.environ.get("BR_LEAK_RESTRICT", "1") == "1"  # fixture-loop tests on the cases that reach the edit
 STATE_CHECK_CPU = float(os.environ.get("BR_STATE_CHECK_CPU", "0.65"))  # local CPU s of one comparison (0.60-0.70 measured)
 # Scorer CPU per local CPU second for this work: practice M13 -> M17 cost +9.4 s of
@@ -554,6 +555,7 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
                                      "cap": cap if costs is not None else 0.0,
                                      "warm": costs[0] if costs else 0.0, "full": costs[1] if costs else {}}
 
+    leak_skip = ""
     if getattr(found, "leak_check", ""):
         # The edit may leave state behind that later tests see (selector/leak.py):
         # run every test that can execute it in one process (fixture-loop tests on
@@ -564,6 +566,7 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
         # cannot be run that way, or a changed state, means every test.
         plan.everything = set(seconds_of)
         run = sorted(certain | possible)
+        saved_restrict, saved_stage = dict(plan.restrict), dict(plan.stage)
         plan.stage = {}
         cost = {}
         for n in run:
@@ -577,20 +580,33 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
         # Worth it while its CPU plus packing what may fail stays under including everything.
         everything_cost = pack(sorted(plan.everything), ms_of, fast=True)[1] / 1000.0
         run_cost = pack(run, ms_of, fast=True)[1] / 1000.0
-        if costly or cpu > LEAK_MAX_CPU or cpu + 0.5 * run_cost >= everything_cost:
+        too_costly = costly or cpu > LEAK_MAX_CPU or cpu + 0.5 * run_cost >= everything_cost
+        if not getattr(found, "leak_write", False) and (too_costly or cpu > LEAK_COPY_MAX_CPU):
+            # Copying changed and nothing else: an alias can only leak through an object
+            # that outlives a test reaching the changed code, which none of 63 labelled
+            # copy edits did (a later candidate of the same function sees it and is
+            # selected or verified with it). Such a check is run only while it is cheap;
+            # otherwise the commit is planned as any other.
+            leak_skip = f"copy-only edit ({found.leak_check}): state check skipped ({cpu:.1f}s)"
+        elif too_costly:
             plan.include = set(plan.everything)
             plan.include_tag = {n: "leak-all" for n in plan.include}
             plan.restrict = {}
             plan.note = (f"may leak state ({found.leak_check}); state check too costly "
                          f"({len(run)} tests, {cpu:.1f}s, {len(costly)} expensive): everything")
             return plan
-        plan.leak_check = True
-        plan.verify = run
-        plan.verify_cpu_estimate = cpu
-        plan.est = cpu
-        plan.note = f"state check ({found.leak_check}): run {len(run)} ({len(plan.restrict)} on some cases)"
-        _prepare_checks(plan, changes, found, maps, numbers, flagged_only=False)
-        return plan
+        if not leak_skip:
+            plan.leak_check = True
+            plan.verify = run
+            plan.verify_cpu_estimate = cpu
+            plan.est = cpu
+            plan.note = f"state check ({found.leak_check}): run {len(run)} ({len(plan.restrict)} on some cases)"
+            _prepare_checks(plan, changes, found, maps, numbers, flagged_only=False)
+            return plan
+        # planned as any other commit: undo the state-check setup
+        plan.everything = set()
+        plan.restrict = saved_restrict
+        plan.stage = saved_stage
 
     # Too costly to run here: more CPU than EXPENSIVE_CPU and more than
     # EXPENSIVE_SHARE of the test's recorded seconds (what including it costs).
@@ -718,7 +734,7 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
     summary = ", ".join(f"{n}={c:.2f}" for c, n, *_ in scored)
     plan.include |= blind
     if not verify:
-        plan.note = f"blind {len(possible)} ({summary})"
+        plan.note = f"blind {len(possible)} ({summary})" + (f" | {leak_skip}" if leak_skip else "")
         _prepare_checks(plan, changes, found, maps, numbers, flagged_only=True)
         if plan.import_check:
             plan.note += " | import check"
@@ -733,7 +749,7 @@ def plan_commit(cid, changes, found, maps, map_to_number, seconds_of, unknown_nu
         plan.probes = probe_items
         plan.lite_rest = cheap - verify
         plan.lite_rest_cpu = verify_cpu_of(plan.lite_rest) if plan.lite_rest else 0.0
-    plan.note = f"{name}: verify {len(verify)}, include {len(blind)} ({summary})"
+    plan.note = f"{name}: verify {len(verify)}, include {len(blind)} ({summary})" + (f" | {leak_skip}" if leak_skip else "")
     # keep the restrictions of every test that may be run: this round, and the
     # second round of a light probe (plan.lite_rest)
     plan.restrict = {n: plan.restrict[n] for n in set(verify) | plan.lite_rest if n in plan.restrict}

@@ -221,6 +221,10 @@ ones against the patched tree and keep only the ones that fail.**
    module and every loaded test module fingerprinted before and after; any change the
    pinned suite itself never makes (measured with one full pinned run,
    `tools/br_state_plugin.py`), or a candidate too costly to run, includes every test.
+   An edit that only changes copying gets this check only while it is cheap (<= 3 s local
+   CPU); otherwise it is planned as any other commit (none of 63 labelled copy edits left
+   a victim outside the selection, and the check cost about 8.5 s of scorer CPU on the
+   practice batch).
 
 5. **Pack** (`selector/pack.py`): longest-processing-time packing for every worker
    count 1..8 plus a move/swap improvement pass, choosing the cheapest.

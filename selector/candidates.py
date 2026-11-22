@@ -60,6 +60,7 @@ class CommitCandidates:
     unknown: bool = False  # something we cannot reason about
     leak: str = ""  # why the commit may leak state between tests: everything (selector/leak.py)
     leak_check: str = ""  # why the commit needs the state check (selector/leak.py)
+    leak_write: bool = False  # ... for a reason other than copying alone
 
     @property
     def certain(self) -> int:
@@ -209,7 +210,11 @@ class CandidateFinder:
                     result.unknown = True
                     result.leak = hard
                 elif soft:
+                    from .leak import COPY_ONLY
+
                     result.leak_check = (result.leak_check + "; " if result.leak_check else "") + f"{path}: {soft}"
+                    if not soft.startswith(COPY_ONLY):
+                        result.leak_write = True
             report.trees = None
         else:
             report.kind = "data"

@@ -15,9 +15,11 @@ classify() sorts an edit of a .py file:
 * hard: an edited function's original body already writes to an object that outlives a
   test (8 functions in sqlglot at the pinned commit, e.g. the parser's CONNECT BY
   helper that sets and pops a parser-table entry). Every test is included.
-* soft: the edit introduces such a write, or changes copying or aliasing (a changed
-  line mentions `copy`, a container copy or an in-place operator is added or removed),
-  `global`/`nonlocal` declarations, a mutable default or a caching decorator. The
+* soft: the edit introduces such a write (also through `self.<name>` when some class
+  in the file binds <name> in its body), changes `global`/`nonlocal` declarations, adds a
+  mutable default or touches a caching decorator; or it only changes copying or aliasing
+  (fewer copies: a copy flag or default flipped towards no copy, `copy` negated, a copy
+  call or statement removed, a container copy or an in-place operator added or removed). The
   commit is narrowed as usual, then every candidate runs in one verification child
   (fixture loops on the cases that reach the edit), and the state of every sqlglot class and module (and every loaded test
   module) is fingerprinted before and after the run (state_leaks). Any change the
@@ -66,10 +68,60 @@ def _locals(func) -> set:
     return names - glob
 
 
+CLASS_LEVEL: list = [None]  # names bound in some class body of the file being classified
+
+
+def _class_level_names(tree) -> set:
+    out = set()
+    for cls in ast.walk(tree):
+        if isinstance(cls, ast.ClassDef):
+            for node in cls.body:
+                targets = node.targets if isinstance(node, ast.Assign) else (
+                    [node.target] if isinstance(node, (ast.AnnAssign, ast.AugAssign)) and getattr(node, "value", 1) is not None
+                    else [])
+                out.update(t.id for t in targets if isinstance(t, ast.Name))
+    return out
+
+
+def _module_names(tree) -> set:
+    """Names bound at module level (assignments, imports, defs, classes, loop targets,
+    including inside module-level if/try/with blocks) or declared global anywhere."""
+    names = set()
+
+    def visit(body):
+        for node in body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                names.add(node.name)
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                names.update((a.asname or a.name).split(".")[0] for a in node.names)
+            else:
+                for n in ast.walk(node) if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For,
+                                                            ast.With, ast.AsyncFor, ast.AsyncWith)) else ():
+                    if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
+                        names.add(n.id)
+                for field in ("body", "orelse", "finalbody", "handlers"):
+                    sub = getattr(node, field, None)
+                    if isinstance(sub, list):
+                        visit([x for x in sub if isinstance(x, ast.stmt)] +
+                              [y for h in sub if isinstance(h, ast.ExceptHandler) for y in h.body])
+
+    visit(tree.body)
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Global):
+            names.update(n.names)
+    return names
+
+
 class _Func:
-    def __init__(self, func, outer_locals):
+    def __init__(self, func, outer_locals, module_names=None):
         self.func = func
         self.locals = _locals(func) | outer_locals
+        # Names a bare reference can reach outside the function: module-level bindings
+        # and names this function imports. Anything else is a NameError, not a global
+        # (e.g. an assignment the edit deleted).
+        self.reachable = None if module_names is None else set(module_names) | {
+            (a.asname or a.name).split(".")[0] for n in _walk_own(func) if isinstance(n, (ast.Import, ast.ImportFrom))
+            for a in n.names}
         self.aliases: set = set()  # locals bound to a shared object
         for n in _walk_own(func):
             if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name) \
@@ -91,10 +143,16 @@ class _Func:
             return True
         if node.id == "self":
             # class-level tables (UPPERCASE), the class itself, the (possibly cached) dialect
-            return any(a.isupper() or a.startswith("__") or a == "dialect" for a in chain)
+            # (and any attribute some class in this file binds in its body: a lowercase
+            # class-level table such as `arg_types` or `_sql_names`)
+            class_names = CLASS_LEVEL[0] or set()
+            return any(a.isupper() or a.startswith("__") or a == "dialect" or a in class_names for a in chain[-1:]) \
+                or any(a.isupper() or a.startswith("__") or a == "dialect" for a in chain)
         if node.id in self.aliases:
             return True
-        return node.id not in self.locals
+        if node.id in self.locals:
+            return False
+        return self.reachable is None or node.id in self.reachable
 
     def mutates_shared(self) -> bool:
         for n in _walk_own(self.func):
@@ -114,7 +172,7 @@ class _Func:
         return False
 
 
-def _changed_functions(tree, changed_lines):
+def _changed_functions(tree, changed_lines, module_names=None):
     """_Func for every function whose lines intersect `changed_lines` (nested included).
     Only statements whose span touches a changed line are entered."""
     import bisect
@@ -132,7 +190,7 @@ def _changed_functions(tree, changed_lines):
         for child in ast.iter_child_nodes(node):
             if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 if touches(child):
-                    f = _Func(child, outer_locals)
+                    f = _Func(child, outer_locals, module_names)
                     out.append(f)
                     visit(child, f.locals)
             elif isinstance(child, (ast.stmt, ast.excepthandler, ast.match_case)) and not isinstance(child, ast.Lambda):
@@ -179,6 +237,7 @@ SCOPE_DECL = re.compile(r"^\s*(?:global|nonlocal)\s+(.+)$", re.M)
 COPY_TOKEN = re.compile(r"\bnot\s+copy\b|\bcopy\s*(?::\s*bool\s*)?=\s*(?:True|False)\b|\.copy\(\s*\)|deepcopy\(|\bcopy\.copy\("
                         r"|\[:\]|\bcopy\b")
 MORE_COPYING = {("copy=False", "copy=True"), ("copy:False", "copy:True")}
+COPY_ONLY = "copying only: "  # prefix of soft reasons that involve no write to shared state
 
 
 def _copy_tokens(lines):
@@ -267,28 +326,34 @@ def classify(old_text: str | None, new_text: str | None, removed_text: list[str]
                 continue
     trees = {k: v for k, v in trees.items() if v is not None}
     if "old" in trees and changed_old:
-        for f in _changed_functions(trees["old"], changed_old):
+        CLASS_LEVEL[0] = _class_level_names(trees["old"])
+        for f in _changed_functions(trees["old"], changed_old, _module_names(trees["old"])):
             if f.mutates_shared():
                 return f"{f.func.name} (line {f.func.lineno}) writes to an object that outlives a test", None
     if "new" in trees and changed_new:
-        for f in _changed_functions(trees["new"], changed_new):
+        CLASS_LEVEL[0] = _class_level_names(trees["new"])
+        for f in _changed_functions(trees["new"], changed_new, _module_names(trees["new"])):
             if f.mutates_shared():
                 soft = soft or f"{f.func.name} (new line {f.func.lineno}) now writes to an object that outlives a test"
             if _mutable_default(f.func):
                 soft = soft or f"{f.func.name} has a mutable default"
-    why = _copying_changed(removed, added)
-    if why:
-        soft = soft or why
-    if sum(len(CONTAINER.findall(x)) for x in removed) != sum(len(CONTAINER.findall(x)) for x in added):
-        soft = soft or "a container copy added or removed"
-    if sum(len(AUGMENTED.findall(x)) for x in removed) != sum(len(AUGMENTED.findall(x)) for x in added):
-        soft = soft or "an in-place operator added or removed"
     decl_old = sorted(m.group(1).strip() for x in removed for m in SCOPE_DECL.finditer(x))
     decl_new = sorted(m.group(1).strip() for x in added for m in SCOPE_DECL.finditer(x))
     if decl_old != decl_new:
         soft = soft or "global/nonlocal declarations changed"
     if any("cache" in x for x in removed + added if x.lstrip().startswith("@")):
         soft = soft or "a caching decorator changed"
+    if soft:
+        return None, soft
+    # Copying/aliasing changes only (no write to shared state in sight): marked so the
+    # planner can bound what their state check may cost (policy.LEAK_COPY_MAX_CPU).
+    why = _copying_changed(removed, added)
+    if not why and sum(len(CONTAINER.findall(x)) for x in removed) != sum(len(CONTAINER.findall(x)) for x in added):
+        why = "a container copy added or removed"
+    if not why and sum(len(AUGMENTED.findall(x)) for x in removed) != sum(len(AUGMENTED.findall(x)) for x in added):
+        why = "an in-place operator added or removed"
+    if why:
+        soft = COPY_ONLY + why
     return None, soft
 
 
