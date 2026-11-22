@@ -9,26 +9,21 @@
 > 0 failing tests out. With val17 and val19: 112 labelled copy edits, none leaving a failing
 > test outside the plain (unguarded) selection.
 >
-> **Final entry if the cutoff were now: M27 (6e4195b)** — practice **155.6 s (132.333 +
-> 23.25-23.53 CPU), 0 missed** (the coordinator moved the pick after val25: 0 leaks to
-> unselected tests in 49 targeted copy edits, 112 in total). Stricter scored fallback: M25
-> (161.1). M29 (fa750f1, no state check for copy-only edits) is submitted; if it scores about
-> 152 with 0 missed it becomes the pick.
+> **Final entry if the cutoff were now: M31 (1899098)** — practice **150.9 s (132.679 +
+> 18.17-18.39 CPU), 0 missed**: our best score, sound. Scored fallbacks: M27/M29 155.6, M25 161.1.
 >
-> **Recommended next: M31 (1899098)** = M30 + the fix for M27/M29's extra CPU: the leak
-> classifier called any edited function with a call default "has a mutable default"
-> (normalize.py's `normalization_distance` / `_predicate_lengths`, `max_ = float("inf")`;
-> `helper.subclasses`), so an official-style mutation there ran the full state check (8
-> candidates in one child: 6.3 s local CPU instead of M23's 2.7 s, 1 selected test instead of
-> 4: lower simulated, more CPU, as on practice). Now only a newly added container default
-> triggers; classification CPU back near M25's (val6 0.82 -> 0.15 s). M30 = M29 + a new test
-> module that runs code at import reaches every test (val26 k511: 10 failing, M29 selects
-> none). M30's exact tree: every set 0 missed; Docker: sample valid, 0 misses, 96.839 s;
-> val26 valid, 0 misses. M31 exact tree: every set (val1-val26, sample) 0 missed, simulated
-> identical to M29/M30; Docker: kit sample valid, 0 misses, 96.839 s, 99 s wall, build 378 s;
-> val26, leakmix valid, 0 misses; the two normalize.py probes planned as M23 in the container.
-> Expected for M31 on practice: about M23's 132.7 simulated at about M23's 19 s CPU (about
-> 151.6 s).
+> **Recommended next: M33 (5adb666)** = M31 + M30's new-test-module rule (already in M31) +
+> a CPU-only change: the executor tests' class fixture (every TPC-H and TPC-DS table parsed
+> into Python rows, about 1.4 s local) skips the rows no test of the verification run reads
+> (only `test_execute_tpch` / `test_execute_tpcds` run in full read them; stage checks stop
+> after optimize()). Same selections on every set (val1-val27, kit sample; 13 stage-check
+> commits: identical differing cases). Local CPU, interleaved: kit sample 9.8-10.2 ->
+> 8.3-8.5 s, val6 22.3 -> 19.6 s, val9 unchanged. Expected on practice: 132.7 simulated at
+> about 2-3 s less CPU (about 148-149 s). Docker check on the exact tree: kit sample valid,
+> 0 misses, 96.839 s, 82 s wall (M31: 99 s), build 308 s; 13 stage-check commits valid, 0
+> misses (the checks that finished under emulation found the same differing cases as
+> native; the others ran out of emulated time and fell back to including the test); 7
+> flagged commits valid, 0 misses.
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
@@ -1229,3 +1224,38 @@ M27 and M29 scored identically on practice (132.333 + 23.3 CPU): 4.4 s of CPU ab
 Audit: one official-style comparison flip in each of 691 sqlglot functions: M29 flags 4
 (hard: the writer functions, every test) + 2 (the normalize.py false trigger); M31 flags the
 same 4 hard and nothing else.
+
+## val27 — test-suite plumbing kinds (labelled with pytest collecting the tests directory)
+
+What M31 selects, and what fails (one full-suite `pytest tests` process per commit):
+
+| kind | M31 selects | failing | missed |
+| --- | --- | ---: | ---: |
+| delete tests/test_helper.py | its 4 tests (certain) | 4 | 0 |
+| rename tests/test_helper.py | its 4 tests (certain) | 4 | 0 |
+| tests/test_helper.py no longer parses | its 4 tests (certain; pytest stops collecting, nothing else runs) | 4 | 0 |
+| new tests/conftest.py (sets sqlglot.pretty) | every test below tests/ | 223 | 0 |
+| new pytest.ini / pyproject [tool.pytest.ini_options] (warnings as errors) | every test | 1 / 1 | 0 |
+| new fixture file nobody reads | nothing | 0 | 0 |
+| tests/helpers.py FIXTURES_DIR (harmless / broken) | 114 importers of helpers | 0 / 90 | 0 |
+| comment in sqlglotc/setup.py (read as text by a test) | its 3 readers, verified | 0 | 0 |
+| comment in sqlglot/typing/bigquery.py (read as text) | its reader, verified | 0 | 0 |
+| README.md / root setup.py | nothing | 0 | 0 |
+
+Binary files are not labelled (the labeller cannot apply binary patches); the rule includes
+every test that opened the file (and its importers for .py), which is everything a binary
+change can reach. pytest configuration other than in pyproject's [tool.pytest] (none at the
+pinned commit) is parsed: a pyproject.toml edit outside that table is a data file (no test
+opens it).
+
+## Directory collection does not change older labels
+
+42 older official-style commits (10 kit sample, 12 val6, 12 val9, 8 val2) relabelled with
+one `pytest tests` process each (`label_pytest.py --all --dir`): 41 identical to their
+labels; val2 36ka's old label listed test_execute_tpcds failing and the new run passes it
+(an over-selection in our set, not a miss). Kit sample: all 10 identical to the official
+answers.
+
+## M33 — executor fixture skips table rows no test of the run reads (recommended next)
+
+Commit **5adb666** (on M31). See the top lines. `BR_STAGE_LIGHT_FIXTURE=0` turns it off.
