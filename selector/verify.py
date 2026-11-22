@@ -609,10 +609,11 @@ def run_jobs(jobs: list[Job], root: str, tmp_base: str, parallel: int, deadline:
                 continue
             # Budgets are CPU seconds of the child (a loaded machine stretches
             # wall time without making a run any more expensive); a child stuck
-            # off-CPU is still stopped after a generous wall-clock allowance.
+            # off-CPU (a test that sleeps or waits at import) is stopped after twice its
+            # budget in wall time: it holds one of the two job slots meanwhile.
             elapsed = now - job.started
             used = _cpu_seconds(pid)
-            over_budget = (used if used is not None else elapsed) > job.budget or elapsed > 3 * job.budget + 60
+            over_budget = (used if used is not None else elapsed) > job.budget or elapsed > 2 * job.budget + 15
             if over_budget or now > deadline:
                 try:
                     os.kill(pid, signal.SIGKILL)

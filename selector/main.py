@@ -120,9 +120,13 @@ def main():
 
     total_ms = 0
     out = []
+    packed: dict = {}  # identical selections (e.g. every test) are packed once
     for cid in commits:
         selected = answers.get(cid, [t["number"] for t in tests])
-        workers, cost = pack(selected, ms_of)
+        key = tuple(sorted(selected))
+        if key not in packed:
+            packed[key] = pack(list(key), ms_of)
+        workers, cost = packed[key]
         total_ms += cost
         out.append(json.dumps({"commit": cid, "workers": workers}, separators=(",", ":")))
     sys.stdout.write("\n".join(out) + ("\n" if out else ""))
