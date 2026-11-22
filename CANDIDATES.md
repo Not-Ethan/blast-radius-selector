@@ -14,7 +14,13 @@
 > Expect M23's CPU. If no real score arrives, M23 (151.6 s, 0 missed) is the scored fallback
 > but carries both miss classes.
 >
-> **Recommended next: M24 (ffad41e).** M25 (state-leak guard, on top of M24) is in validation.
+> **Recommended next: M24 (ffad41e), then M25 (4c85b5e).** M25 = M24 + the state-leak guard
+> (closes leakctl c004: 10 victims that pass alone, missed by M23/M24). Every set 0 misses;
+> simulated equal to M24 on the sample, val2, val6 and every val set except val9 233.3
+> (-1.8) and val1 1073.2 (-4.5); kit-sample CPU equal to M23/M24 within noise; costly only on
+> copy edits in core code (leaks2 +167 s over 23 adversarial commits). Docker checks: see
+> the M25 section. If M25's real score matches M24's with 0 missed, M25 should become the
+> final entry.
 >
 > Previous final entry: M23 (071cab9, public e88ad91), practice 151.6 s (132.679 simulated +
 > 18.86-18.92 CPU), 0 missed; 41st of 344 at the time (1st 114.6, 10th 128.3, 30th 143.2).
@@ -938,3 +944,68 @@ M25); two real misses in M23 (and in M17-M23 for the first) found on the way:
 Docker check on the exact tree (ffad41e): valid, 0 misses, simulated 121.616 s emulated,
 build 2290 s under heavy load (see the top).
 
+
+## M25 — state-leak guard (includes M24)
+
+Commits **a362bd0** + **4c85b5e** (candidate = 4c85b5e: the state check also ignores
+test_executor's process-pool initializer globals, which pytest sets in pool workers and we
+set in-process). `selector/leak.py`, the verification child's state check
+(`selector/verify.py`), planning in `selector/policy.py` (see the README, "State left
+behind for later tests").
+
+* **hard** (every test): an edit inside one of the 9 sqlglot functions that already
+  write state that outlives a test (dialect registry loading, `Dialect.__new__`,
+  `Tokenizer.__init_subclass__`, `Expression.__init_subclass__`, `Generator.__init__`'s
+  dispatch cache, the parser's CONNECT BY helper that sets and pops a table entry, ...).
+  None of the official-style sets (sample, val2, val6, val9) has such an edit.
+* **soft** (narrow, then a state check): an edit that introduces such a write, changes
+  copying (copy flag/default flipped towards no copy, `copy` negated, a copy call or a
+  copy statement removed; `copy=False -> True` and added copies do not count), changes
+  `global`/`nonlocal`, adds a mutable default or touches a caching decorator. Every
+  candidate runs in one child (fixture loops on the cases that reach the edit); every
+  sqlglot class/module and loaded test module is fingerprinted before and after. A change
+  the pinned suite never makes (one full pinned run, `tools/br_state_plugin.py`), a
+  candidate too expensive to run, or a check costing more than including everything
+  (CPU + half the candidates' packing >= packing everything), includes every test.
+  Official-style firings: sample 0/30, val6 0/60, val2 0/120, val9 1/60 (gjrx, a builder's
+  `copy: bool = True -> False`: 125 candidates checked in 9.5 s local CPU, state unchanged,
+  exactly the 9 failing tests kept), val1 2/199 (b4b5 and ic58, both checked, unchanged).
+* What it fixes: leakctl c004 (10 victims that pass alone; M23/M24 select none) and
+  c001-c003 now include everything because the check sees the class table, registry or
+  module constant they damage. On `leaks` (40 copy removals) M23/M24 already had 0 misses;
+  M25 checks them (most "state unchanged") at +27.6 s simulated over the 40.
+* Also: keyrefine no longer falls back on Python 3.13's `__firstlineno__` /
+  `__static_attributes__` (val1 d9ch back to M22's narrowing); expression position slots
+  are not read by the after-run check (shared constant nodes are re-parented on the pinned
+  commit too).
+
+| set | M24 | M25 | misses |
+| --- | ---: | ---: | ---: |
+| kit sample (30) | 96.8 | 96.8 | 0 |
+| val6 / val2 | 193.2 / 532.8 | 193.2 / 532.8 | 0 |
+| val9 (60) | 235.1 | **233.3** | 0 |
+| val1 (199) | 1077.7 | **1073.2** | 0 |
+| kinds3 (37) / kinds2 (47) | 673.9 / 656.7 | **668.6** / 656.7 | 0 |
+| slots (5) | 10.5 | 10.5 | 0 |
+| leaks (40) | 251.4 | 279.0 | 0 |
+| leaks2 (23 of 24 labelled; copy edits on lines >= 20 tests run) | 345.7 | 512.9 | 0 (M23 0 too) |
+| leakctl (4) | 302.7 (c004 missed) | **147.3** | **1 -> 0** |
+| val3, val4, val5, val7, val8 | 287.5, 79.3, 176.4, 47.5, 166.3 | same | 0 |
+| val10-val16 | 362.2, 138.7, 138.7, 110.5, 46.5, 169.9, 546.7 | same | 0 |
+
+Cost where it bites: copy edits in core expression code (leaks2) have expensive
+candidates (TPC-DS execution, test_max_nodes) that a check cannot run, so 11 of 23 include
+everything: +167 s over the 23. Official-style sets never hit that (2 soft firings in 470
+commits, both checked cheaply). Kit-sample CPU, interleaved native runs with the pinned
+fingerprints precomputed as in the image (round 1 discarded): M23 10.51 / 10.72, M24 10.52 /
+10.61, M25 10.69 s; simulated 96.8 for all three.
+
+Docker checks: a362bd0 on the kit sample valid, 0 misses, 121.616 s emulated (build 463 s);
+the same image on 7 flagged commits (c001-c004, gjrx, b4b5, ic58): valid, 0 misses, the
+state check ran inside the container (read-only disk, user nobody, 64 MB /tmp) with child
+RSS 250-370 MB; gjrx's check was killed by the emulated budget and fell back to every test
+(native: 9.5 s).
+
+Not covered (README "Known risks"): an edit that leaks state without matching a trigger
+(e.g. passing a different shared object to a function that mutates its argument, no copy
+involved), and damage that a later candidate repairs before the check (transient).
