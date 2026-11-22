@@ -380,6 +380,23 @@ class CandidateFinder:
             return 0
         names = set(site.names)
         dunder = any(n.startswith("__") and n.endswith("__") for n in names)
+        if site.kind == "class-header" and len(names) > 1:
+            # A renamed class: its __name__ feeds keys computed at import time (the
+            # dialect registry keys "athena" off `class Athena`, expression keys and
+            # SQL function names come from class names), read with no mention of
+            # either name. Every test that executed the class statement.
+            return base
+        if site.kind == "class-header" and site.scope != "class":
+            # Bases, keywords or decorators of a module-level class: every user of
+            # the class (instances, methods, reads through its name), not only tests
+            # that mention it (a dialect is used through its registry key).
+            key = f"{module}:{next(iter(names))}" if names else None
+            usage = self._class_usage(key) if key else None
+            cross = self._class_name_reads(key, set()) if usage is not None else None
+            if usage is None or cross is None:
+                return base
+            return base & (usage | cross | self._name_refs(names, rel, site.lines, ("object", "module", "instance"),
+                                                           module=module))
         if site.scope == "class" and rel.startswith("tests/") and site.class_qual and "." not in site.class_qual \
                 and names and all(n.startswith("test") for n in names) and site.kind != "class-header":
             # Only test methods of a test class changed (added, removed, redecorated):
