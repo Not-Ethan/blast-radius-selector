@@ -9,20 +9,26 @@
 > 0 failing tests out. With val17 and val19: 112 labelled copy edits, none leaving a failing
 > test outside the plain (unguarded) selection.
 >
-> **Final entry if the cutoff were now: M25 (4c85b5e)**, practice 161.1, 0 missed (the
-> coordinator moves to M27 or its successor on the count above). Scored sound alternatives:
-> M27 (6e4195b) **155.6 s = 132.333 + 23.25-23.53 CPU, 0 missed**; M24 (ffad41e) 159.9.
+> **Final entry if the cutoff were now: M27 (6e4195b)** — practice **155.6 s (132.333 +
+> 23.25-23.53 CPU), 0 missed** (the coordinator moved the pick after val25: 0 leaks to
+> unselected tests in 49 targeted copy edits, 112 in total). Stricter scored fallback: M25
+> (161.1). M29 (fa750f1, no state check for copy-only edits) is submitted; if it scores about
+> 152 with 0 missed it becomes the pick.
 >
-> **Recommended next: M29 (fa750f1)** = M27 + M28's extra triggers + no state check for
-> copy-only edits (they are planned as any other commit; edits that write shared state keep
-> the full guard). Why: M27's CPU is still about 4 s above M23/M24 at M25's simulated
-> time; on the official-style sets the only plan difference between M23 and M27 is the
-> cheap copy-only check (val1 b4b5: 1.9 s instead of 0.4 s local), so the practice batch
-> very likely runs one or two of them. Every set 0 missed (val1-val25, kinds2, sample).
-> Expected: about M23's simulated (132.7) at about M23/M24's CPU (19-20), i.e. about 152 s.
-> Docker check on the exact tree: kit sample valid, 0 misses, simulated 96.839 s (the
-> emulated run finished at 94 s on a quieter host, same as native), 99 s wall, from-scratch
-> build 335 s; the 7 flagged commits valid, 0 misses.
+> **Recommended next: M31 (1899098)** = M30 + the fix for M27/M29's extra CPU: the leak
+> classifier called any edited function with a call default "has a mutable default"
+> (normalize.py's `normalization_distance` / `_predicate_lengths`, `max_ = float("inf")`;
+> `helper.subclasses`), so an official-style mutation there ran the full state check (8
+> candidates in one child: 6.3 s local CPU instead of M23's 2.7 s, 1 selected test instead of
+> 4: lower simulated, more CPU, as on practice). Now only a newly added container default
+> triggers; classification CPU back near M25's (val6 0.82 -> 0.15 s). M30 = M29 + a new test
+> module that runs code at import reaches every test (val26 k511: 10 failing, M29 selects
+> none). M30's exact tree: every set 0 missed; Docker: sample valid, 0 misses, 96.839 s;
+> val26 valid, 0 misses. M31 exact tree: every set (val1-val26, sample) 0 missed, simulated
+> identical to M29/M30; Docker: kit sample valid, 0 misses, 96.839 s, 99 s wall, build 378 s;
+> val26, leakmix valid, 0 misses; the two normalize.py probes planned as M23 in the container.
+> Expected for M31 on practice: about M23's 132.7 simulated at about M23's 19 s CPU (about
+> 151.6 s).
 
 Newest last. Numbers are local: simulated seconds from the kit's `score.py` (exact for
 that output), oracle = packing exactly the failing tests, misses must be 0. "CPU" is
@@ -1165,3 +1171,61 @@ Kit-sample CPU of the exact tree on a quieter host: 9.97 s (M23-level). Exact-tr
 validation: every set val1-val25, kinds2/val21 and the kit sample, 0 misses, simulated as in
 the table and identical to M27 elsewhere. Docker check: kit sample valid, 0 misses, 96.839 s
 emulated, 99 s wall, build 335 s; leakmix valid, 0 misses.
+
+## val26 — kinds not in practice (labelled with pytest collecting the tests directory)
+
+`.work/mk_kinds5.py`, labelled by `tools/label_pytest.py --all --dir` (as `pytest tests`, so a
+new test file is imported at collection): star-import order in `expressions/__init__.py` (0
+failing: no name is exported by two submodules with different objects), import order in
+`sqlglot/__init__.py` (1600 failing: circular import), `@unittest.expectedFailure` on a
+passing test (1, the test itself), `@unittest.skip` on a test class (0), a dataclass default
+(`lineage.Node.source_name`: 2), a dataclass field losing its annotation (53), an annotation
+only (0), the unsupported-argument format string (2), a module regex (0), `ensure_list`
+returning a tuple (10), a new test file with an import side effect (10), a plain new test
+file with a failing test (0: not in tests.json), deleting `dialects/druid.py` (7), the
+missing-docstring default in `Expression.__init_subclass__` (0, hard leak rule: every test).
+M29: 0 missed except k511; M30: 0 missed.
+
+## TPC-DS included blind when many tests fail: no cheap sound fix (measured)
+
+* Per-case coverage cannot narrow these: in val9 k5a2, val9 538a and sample 2jrq, 53-57 of
+  the 57 executed TPC-DS cases reach the change.
+* The stage check (compare each case's optimize() output with the pinned recording) applies
+  when nothing outside optimize() is reached: 538a and 2jrq yes, k5a2 no (all 57 cases'
+  outer code reached).
+* Its cost model is pessimistic (19 measured checks: about half find every output equal and
+  run whole, about 4-5 s local for 57 cases; otherwise nearly all cases differ and the check
+  stops after about 2 s; 3 of 19 re-ran a few differing cases). With a measured model plus a
+  "verify only the stage-checkable test" option, the planner picks 538a's check: 12 of 53
+  outputs differ, those 12 cases re-run in full, TPC-DS passes and is dropped (-18.5 s
+  simulated) but the check costs 10.9 s local CPU; with a second plan change (asnm, +2.8 s
+  CPU) val9 goes 235.1 -> 221.0 simulated for about +13.7 s local CPU, i.e. a loss at the
+  scorer's CPU factor (about 1.3-1.9). Reverted; not in any candidate.
+* Proving TPC-DS passes needs every reached case cleared, so no subset of cases can do it;
+  one failing case justifies including it, but that inclusion is what blind already does.
+
+## M30 — a new test module that runs code at import reaches every test (superseded by M31)
+
+Commit **9f051e5** (on M29). See val26 above (k511). Exact tree: every set 0 missed.
+Docker: kit sample valid, 0 misses, 96.839 s, build 346 s; val26 valid, 0 misses.
+
+## M31 — no false "mutable default" trigger; cheaper classification (recommended next)
+
+Commit **1899098** (on M30).
+
+M27 and M29 scored identically on practice (132.333 + 23.3 CPU): 4.4 s of CPU above M23 at
+0.35 s less simulated time, so the extra CPU was not the copy-only check. Measured locally:
+* not the fingerprint: one comparison child costs M23 0.61-0.67 s, M27 0.64-0.70 s (import
+  0.17-0.19, walk 0.33-0.39, JSON 0.02);
+* the leak classifier's new scans (M27/M28) walked every node of each edited file: 0.82 s
+  on val6 (M25: 0.07 s); now 0.15 s;
+* and the cause matching practice's signature: `_mutable_default` treated any call default
+  as mutable, so every edit inside `normalization_distance` / `_predicate_lengths`
+  (`max_: float = float("inf")`) or `helper.subclasses` ran the full state check. An
+  official-style flip there (`total > max_` -> `>=`): M23 verifies 4 tests (2.7 s local CPU)
+  and includes 4; M29 runs all 8 candidates in one child (6.3 s) and includes 1. Lower
+  simulated, more CPU, as on practice. M31 triggers only on a newly added container default.
+
+Audit: one official-style comparison flip in each of 691 sqlglot functions: M29 flags 4
+(hard: the writer functions, every test) + 2 (the normalize.py false trigger); M31 flags the
+same 4 hard and nothing else.
