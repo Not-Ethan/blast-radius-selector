@@ -73,44 +73,81 @@ def _locals(func) -> set:
 CLASS_LEVEL: list = [None]  # names bound in some class body of the file being classified
 
 
+def _bodies(node):
+    """Statement lists directly under a compound statement (not inside functions)."""
+    for field in ("body", "orelse", "finalbody"):
+        sub = getattr(node, field, None)
+        if isinstance(sub, list):
+            yield sub
+    for h in getattr(node, "handlers", None) or []:
+        yield h.body
+    for c in getattr(node, "cases", None) or []:
+        yield c.body
+
+
 def _class_level_names(tree) -> set:
+    """Names bound in the body of some class (module-level and nested classes, found
+    through compound statements outside functions)."""
     out = set()
-    for cls in ast.walk(tree):
-        if isinstance(cls, ast.ClassDef):
-            for node in cls.body:
-                targets = node.targets if isinstance(node, ast.Assign) else (
-                    [node.target] if isinstance(node, (ast.AnnAssign, ast.AugAssign)) and getattr(node, "value", 1) is not None
+    todo = list(tree.body)
+    while todo:
+        node = todo.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if isinstance(node, ast.ClassDef):
+            for b in node.body:
+                targets = b.targets if isinstance(b, ast.Assign) else (
+                    [b.target] if isinstance(b, (ast.AnnAssign, ast.AugAssign)) and getattr(b, "value", 1) is not None
                     else [])
                 out.update(t.id for t in targets if isinstance(t, ast.Name))
+        for sub in _bodies(node):
+            todo.extend(sub)
     return out
 
 
-def _module_names(tree) -> set:
-    """Names bound at module level (assignments, imports, defs, classes, loop targets,
-    including inside module-level if/try/with blocks) or declared global anywhere."""
+GLOBAL_DECL = re.compile(r"^[ \t]*global[ \t]+([\w, \t]+)", re.M)
+
+
+def _target_names(t, out):
+    if isinstance(t, ast.Name):
+        out.add(t.id)
+    elif isinstance(t, (ast.Tuple, ast.List)):
+        for e in t.elts:
+            _target_names(e, out)
+    elif isinstance(t, ast.Starred):
+        _target_names(t.value, out)
+
+
+def _module_names(tree, text=None) -> set:
+    """Names bound at module level (assignments, imports, defs, classes, loop and with
+    targets, including inside module-level compound statements) or declared global."""
     names = set()
-
-    def visit(body):
-        for node in body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                names.add(node.name)
-            elif isinstance(node, (ast.Import, ast.ImportFrom)):
-                names.update((a.asname or a.name).split(".")[0] for a in node.names)
-            else:
-                for n in ast.walk(node) if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.For,
-                                                            ast.With, ast.AsyncFor, ast.AsyncWith)) else ():
-                    if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
-                        names.add(n.id)
-                for field in ("body", "orelse", "finalbody", "handlers"):
-                    sub = getattr(node, field, None)
-                    if isinstance(sub, list):
-                        visit([x for x in sub if isinstance(x, ast.stmt)] +
-                              [y for h in sub if isinstance(h, ast.ExceptHandler) for y in h.body])
-
-    visit(tree.body)
-    for n in ast.walk(tree):
-        if isinstance(n, ast.Global):
-            names.update(n.names)
+    todo = list(tree.body)
+    while todo:
+        node = todo.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+            continue
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            names.update((a.asname or a.name).split(".")[0] for a in node.names)
+        elif isinstance(node, ast.Assign):
+            for t in node.targets:
+                _target_names(t, names)
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.For, ast.AsyncFor)):
+            _target_names(node.target, names)
+        elif isinstance(node, (ast.With, ast.AsyncWith)):
+            for item in node.items:
+                if item.optional_vars is not None:
+                    _target_names(item.optional_vars, names)
+        for sub in _bodies(node):
+            todo.extend(sub)
+    if text:
+        for m in GLOBAL_DECL.finditer(text):
+            names.update(n.strip() for n in m.group(1).split(",") if n.strip())
+    else:
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Global):
+                names.update(n.names)
     return names
 
 
@@ -323,12 +360,21 @@ def _qualified_functions(tree):
     return out
 
 
-def _mutable_default(func) -> bool:
+MUTABLE_FACTORIES = {"list", "dict", "set", "defaultdict", "OrderedDict", "deque", "bytearray", "Counter"}
+
+
+def _mutable_defaults(func) -> list:
+    """Dumps of the defaults that create a mutable object (displays, comprehensions, calls
+    of container constructors), in order."""
     a = func.args
+    out = []
     for d in list(a.defaults) + [x for x in a.kw_defaults if x is not None]:
-        if isinstance(d, (ast.List, ast.Dict, ast.Set, ast.ListComp, ast.DictComp, ast.SetComp, ast.Call)):
-            return True
-    return False
+        mutable = isinstance(d, (ast.List, ast.Dict, ast.Set, ast.ListComp, ast.DictComp, ast.SetComp)) or (
+            isinstance(d, ast.Call) and (d.func.attr if isinstance(d.func, ast.Attribute) else getattr(d.func, "id", ""))
+            in MUTABLE_FACTORIES)
+        if mutable:
+            out.append(ast.dump(d))
+    return out
 
 
 def classify(old_text: str | None, new_text: str | None, removed_text: list[str], added_text: list[str],
@@ -361,22 +407,26 @@ def classify(old_text: str | None, new_text: str | None, removed_text: list[str]
     trees = {k: v for k, v in trees.items() if v is not None}
     passed = {"old": set(), "new": set()}
     writer_call = False
+    old_defaults = {}
     if "old" in trees and changed_old:
         CLASS_LEVEL[0] = _class_level_names(trees["old"])
-        for f in _changed_functions(trees["old"], changed_old, _module_names(trees["old"])):
+        for f in _changed_functions(trees["old"], changed_old, _module_names(trees["old"], old_text)):
             if f.mutates_shared():
                 return f"{f.func.name} (line {f.func.lineno}) writes to an object that outlives a test", None
+            old_defaults[(f.func.name, f.func.lineno)] = _mutable_defaults(f.func)
             passed["old"] |= f.shared_args(changed_old)
             writer_call = writer_call or f.calls_writer(changed_old)
     if "new" in trees and changed_new:
         CLASS_LEVEL[0] = _class_level_names(trees["new"])
-        for f in _changed_functions(trees["new"], changed_new, _module_names(trees["new"])):
+        for f in _changed_functions(trees["new"], changed_new, _module_names(trees["new"], new_text)):
             passed["new"] |= f.shared_args(changed_new)
             writer_call = writer_call or f.calls_writer(changed_new)
             if f.mutates_shared():
                 soft = soft or f"{f.func.name} (new line {f.func.lineno}) now writes to an object that outlives a test"
-            if _mutable_default(f.func):
-                soft = soft or f"{f.func.name} has a mutable default"
+            new_defaults = _mutable_defaults(f.func)
+            if new_defaults and not any(name == f.func.name and dumps == new_defaults
+                                        for (name, _), dumps in old_defaults.items()):
+                soft = soft or f"{f.func.name} has a new mutable default"
     decl_old = sorted(m.group(1).strip() for x in removed for m in SCOPE_DECL.finditer(x))
     decl_new = sorted(m.group(1).strip() for x in added for m in SCOPE_DECL.finditer(x))
     if decl_old != decl_new:
