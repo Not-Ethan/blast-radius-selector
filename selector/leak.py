@@ -306,6 +306,9 @@ MUTATED_ENTRIES = {"sqlglot.parsers.bigquery:BigQueryParser\tFUNCTIONS": {"REGEX
 # records tearDown_exceptions on each TestCase class.
 TEST_STATE = {"sqlglot\tschema",  # test setUp rebinds sqlglot.schema; no sqlglot code reads it
               "tests.test_executor\tget_context", "tests.test_optimizer\tget_context",
+              # set by test_executor's process-pool initializer, which pytest runs in the
+              # pool's worker processes and our verification runs in-process
+              "tests.test_executor\t_schema", "tests.test_executor\t_tables",
               "tests.test_sqlglotc:TestSQLGlotC\tbuild_ext", "tests.test_optimizer:TestOptimizer\tconn",
               "tests.test_optimizer:TestOptimizer\tpool"} | {
     f"tests.test_executor:TestExecutor\t{a}" for a in ("cache", "tpcds_conn", "tpcds_sqls", "tpcds_tables",
